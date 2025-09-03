@@ -19,7 +19,7 @@
 //!
 //! ## Example Usage
 //!
-//! ```rust
+//! ```rust,no_run
 //! use otel_instrumentation_neo4jrs::InstrumentedGraph;
 //! use neo4rs::{ConfigBuilder, query};
 //!
@@ -48,8 +48,13 @@
 //!
 //! ## Example with Explicit Parameters
 //!
-//! ```rust
+//! ```rust,no_run
+//! use otel_instrumentation_neo4jrs::InstrumentedGraph;
+//!
+//! # async fn example() -> Result<(), neo4rs::Error> {
 //! let graph = InstrumentedGraph::new("bolt://localhost:7687", "neo4j", "password").await?;
+//! # Ok(())
+//! # }
 //! ```
 use crate::builder::InstrumentedGraphBuilder;
 use crate::error::{InstrumentationError, InstrumentationResult};
