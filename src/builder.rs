@@ -232,8 +232,10 @@ mod tests {
     fn test_builder_defaults() {
         let config = ConfigBuilder::default()
             .uri("bolt://localhost:7687")
+            .user("neo4j")
+            .password("password")
             .build()
-            .unwrap();
+            .expect("Failed to build test config");
 
         let builder = InstrumentedGraphBuilder::new(config);
         assert!(builder.enable_tracing);
