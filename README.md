@@ -343,8 +343,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [tracing](https://github.com/tokio-rs/tracing) - Application-level tracing for Rust
 
 ## Support
-
-This crate is part of the Hermes platform and is currently in experimental status. For issues and questions:
-
-- GitHub Issues: [hermes-platform](https://github.com/hermes-capital-io/hermes-platform)
 - Documentation: [docs.rs](https://docs.rs/otel-instrumentation-neo4jrs)
