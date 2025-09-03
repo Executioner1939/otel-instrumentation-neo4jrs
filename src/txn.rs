@@ -1,5 +1,7 @@
 use neo4rs::{Txn, Query, RowStream};
 use crate::graph::Neo4jConnectionInfo;
+use crate::metrics::{Neo4jMetrics, OperationTimer};
+use std::sync::Arc;
 use tracing::{debug, instrument};
 
 /// An instrumented wrapper around `neo4rs::Txn` that adds OpenTelemetry tracing
@@ -30,12 +32,25 @@ use tracing::{debug, instrument};
 pub struct InstrumentedTxn {
     inner: Txn,
     info: Neo4jConnectionInfo,
+    metrics: Option<Arc<Neo4jMetrics>>,
+    transaction_timer: Option<OperationTimer>,
 }
 
 impl InstrumentedTxn {
     /// Create a new instrumented transaction wrapper
-    pub(crate) fn new(inner: Txn, info: Neo4jConnectionInfo) -> Self {
-        Self { inner, info }
+    pub(crate) fn new(
+        inner: Txn, 
+        info: Neo4jConnectionInfo,
+        metrics: Option<Arc<Neo4jMetrics>>,
+    ) -> Self {
+        let transaction_timer = metrics.as_ref().map(|_| OperationTimer::start());
+        
+        Self { 
+            inner, 
+            info,
+            metrics,
+            transaction_timer,
+        }
     }
 
     /// Execute a query within the transaction and return results
@@ -126,9 +141,20 @@ impl InstrumentedTxn {
         skip(self),
         err,
     )]
-    pub async fn commit(self) -> Result<(), neo4rs::Error> {
+    pub async fn commit(mut self) -> Result<(), neo4rs::Error> {
         debug!("committing transaction");
-        self.inner.commit().await
+        
+        let result = self.inner.commit().await;
+        
+        // Record transaction metrics if enabled
+        if let Some(metrics) = &self.metrics {
+            if let Some(timer) = self.transaction_timer.take() {
+                let duration = timer.elapsed();
+                metrics.record_transaction_end(duration, result.is_ok(), &self.info.database_name);
+            }
+        }
+        
+        result
     }
 
     /// Rollback the transaction
@@ -149,9 +175,20 @@ impl InstrumentedTxn {
         skip(self),
         err,
     )]
-    pub async fn rollback(self) -> Result<(), neo4rs::Error> {
+    pub async fn rollback(mut self) -> Result<(), neo4rs::Error> {
         debug!("rolling back transaction");
-        self.inner.rollback().await
+        
+        let result = self.inner.rollback().await;
+        
+        // Record transaction metrics if enabled
+        if let Some(metrics) = &self.metrics {
+            if let Some(timer) = self.transaction_timer.take() {
+                let duration = timer.elapsed();
+                metrics.record_transaction_end(duration, false, &self.info.database_name);
+            }
+        }
+        
+        result
     }
 
     /// Get a reference to the connection information

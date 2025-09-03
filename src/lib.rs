@@ -145,7 +145,13 @@ Transactions are fully supported with proper span hierarchies:
 pub mod graph;
 pub mod txn;
 pub mod error;
+pub mod metrics;
+pub mod builder;
+pub mod ext;
 
 pub use graph::InstrumentedGraph;
 pub use txn::InstrumentedTxn;
 pub use error::InstrumentationError;
+pub use metrics::{Neo4jMetrics, MetricsBuilder};
+pub use builder::{InstrumentedGraphBuilder, TelemetryConfig};
+pub use ext::{GraphExt, QueryExt};

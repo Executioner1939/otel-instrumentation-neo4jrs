@@ -13,6 +13,8 @@ maintenance = { status = "experimental" }
 
 [features]
 default = []
+metrics = ["opentelemetry/metrics"]
+full = ["metrics"]
 
 [dependencies]
 neo4rs = "0.8.0"
@@ -20,9 +22,11 @@ tracing = "0.1.41"
 opentelemetry = { version = "0.30.0", features = ["trace"] }
 opentelemetry-semantic-conventions = "0.30.0"
 futures-util = "0.3.31"
+regex = { version = "1.10", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.43.0", features = ["full", "test-util"] }
+opentelemetry_sdk = { version = "0.30.0", features = ["metrics"] }
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]

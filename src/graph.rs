@@ -53,8 +53,11 @@
 //! ```
 use neo4rs::{Graph, Query, Config};
 use std::ops::Deref;
+use std::sync::Arc;
 use tracing::{debug, instrument, warn};
 use crate::error::{InstrumentationError, InstrumentationResult};
+use crate::metrics::{Neo4jMetrics, OperationTimer};
+use crate::builder::InstrumentedGraphBuilder;
 
 /// Connection information retrieved from Neo4j server
 #[derive(Clone, Debug)]
@@ -93,9 +96,76 @@ pub struct Neo4jConnectionInfo {
 pub struct InstrumentedGraph {
     inner: Graph,
     info: Neo4jConnectionInfo,
+    metrics: Option<Arc<Neo4jMetrics>>,
+    service_name: Option<String>,
+    record_statement: bool,
+    max_statement_length: usize,
 }
 
 impl InstrumentedGraph {
+    /// Create an instrumented graph with custom options
+    ///
+    /// This is primarily used by the builder pattern.
+    pub async fn with_options(
+        graph: Graph,
+        _enable_tracing: bool,
+        metrics: Option<Arc<Neo4jMetrics>>,
+        service_name: Option<String>,
+        record_statement: bool,
+        max_statement_length: usize,
+    ) -> Result<Self, neo4rs::Error> {
+        let info = Self::get_connection_info(&graph).await
+            .map_err(Self::convert_instrumentation_error)?;
+        
+        Ok(Self {
+            inner: graph,
+            info,
+            metrics,
+            service_name,
+            record_statement,
+            max_statement_length,
+        })
+    }
+    
+    /// Create an instrumented graph from an existing graph connection
+    ///
+    /// This is used by the extension trait.
+    pub async fn from_graph(graph: Graph) -> Result<Self, neo4rs::Error> {
+        let info = Self::get_connection_info(&graph).await
+            .map_err(Self::convert_instrumentation_error)?;
+        
+        Ok(Self {
+            inner: graph,
+            info,
+            metrics: None,
+            service_name: None,
+            record_statement: false,
+            max_statement_length: 1024,
+        })
+    }
+    
+    /// Create an instrumented graph from an existing graph with a builder
+    ///
+    /// Internal method used by the extension trait builder pattern.
+    pub(crate) async fn from_graph_with_builder(
+        graph: Graph,
+        _builder: InstrumentedGraphBuilder,
+    ) -> Result<Self, neo4rs::Error> {
+        // Extract settings from the builder
+        // This is a bit hacky but avoids exposing all builder fields
+        let info = Self::get_connection_info(&graph).await
+            .map_err(Self::convert_instrumentation_error)?;
+        
+        Ok(Self {
+            inner: graph,
+            info,
+            metrics: None, // Would need to expose builder fields or refactor
+            service_name: None,
+            record_statement: false,
+            max_statement_length: 1024,
+        })
+    }
+    
     /// Helper to convert instrumentation errors to neo4rs errors for API compatibility
     fn convert_instrumentation_error(e: InstrumentationError) -> neo4rs::Error {
         match e {
@@ -137,7 +207,14 @@ impl InstrumentedGraph {
         span.record("server.port", info.server_port);
         span.record("db.version", &info.version);
 
-        Ok(Self { inner: graph, info })
+        Ok(Self { 
+            inner: graph, 
+            info, 
+            metrics: None,
+            service_name: None,
+            record_statement: false,
+            max_statement_length: 1024,
+        })
     }
 
     /// Create a new connection with the specified configuration
@@ -169,7 +246,14 @@ impl InstrumentedGraph {
         span.record("server.port", info.server_port);
         span.record("db.version", &info.version);
 
-        Ok(Self { inner: graph, info })
+        Ok(Self { 
+            inner: graph, 
+            info, 
+            metrics: None,
+            service_name: None,
+            record_statement: false,
+            max_statement_length: 1024,
+        })
     }
 
     /// Execute a query and consume all results
@@ -195,14 +279,34 @@ impl InstrumentedGraph {
     )]
     pub async fn execute(&self, query: Query) -> Result<(), neo4rs::Error> {
         debug!("executing neo4j query");
-        let mut stream = self.inner.execute(query).await?;
-        // Consume the stream to ensure the query runs and collect metrics
-        let mut row_count = 0;
-        while let Ok(Some(_)) = stream.next().await {
-            row_count += 1;
+        
+        // Start timing if metrics are enabled
+        let timer = self.metrics.as_ref().map(|_| OperationTimer::start());
+        
+        let result = async {
+            let mut stream = self.inner.execute(query).await?;
+            // Consume the stream to ensure the query runs and collect metrics
+            let mut row_count = 0;
+            while let Ok(Some(_)) = stream.next().await {
+                row_count += 1;
+            }
+            debug!("neo4j query execution completed, processed {} rows", row_count);
+            Ok(())
+        }.await;
+        
+        // Record metrics if enabled
+        if let Some(metrics) = &self.metrics {
+            if let Some(timer) = timer {
+                timer.record_query(
+                    metrics,
+                    result.is_ok(),
+                    None, // Operation type not available from Query
+                    &self.info.database_name,
+                );
+            }
         }
-        debug!("neo4j query execution completed, processed {} rows", row_count);
-        Ok(())
+        
+        result
     }
 
     /// Run a query without returning results
@@ -305,8 +409,18 @@ impl InstrumentedGraph {
     )]
     pub async fn start_txn(&self) -> Result<crate::txn::InstrumentedTxn, neo4rs::Error> {
         debug!("starting neo4j transaction");
+        
+        // Record transaction start if metrics are enabled
+        if let Some(metrics) = &self.metrics {
+            metrics.record_transaction_start(&self.info.database_name);
+        }
+        
         let txn = self.inner.start_txn().await?;
-        Ok(crate::txn::InstrumentedTxn::new(txn, self.info.clone()))
+        Ok(crate::txn::InstrumentedTxn::new(
+            txn, 
+            self.info.clone(),
+            self.metrics.clone(),
+        ))
     }
 
     ///

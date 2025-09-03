@@ -1,0 +1,124 @@
+//! Example demonstrating combined metrics and tracing for Neo4j operations
+//!
+//! This example shows how to use the builder pattern and extension traits
+//! to instrument Neo4j connections with both OpenTelemetry tracing and metrics.
+
+use neo4rs::{ConfigBuilder, query};
+use otel_instrumentation_neo4jrs::{GraphExt, InstrumentedGraphBuilder};
+use opentelemetry::metrics::MeterProvider as _;
+use opentelemetry_sdk::metrics::SdkMeterProvider;
+use opentelemetry_sdk::Resource;
+use opentelemetry::KeyValue;
+use tracing_subscriber::prelude::*;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize tracing subscriber
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
+    // Initialize metrics provider
+    let resource = Resource::new(vec![
+        KeyValue::new("service.name", "neo4j-example"),
+    ]);
+    
+    let meter_provider = SdkMeterProvider::builder()
+        .with_resource(resource)
+        .build();
+    
+    let meter = meter_provider.meter("neo4j");
+
+    // Example 1: Using the builder pattern with full configuration
+    println!("Example 1: Builder Pattern");
+    {
+        let config = ConfigBuilder::default()
+            .uri("bolt://localhost:7687")
+            .user("neo4j")
+            .password("password")
+            .build()?;
+
+        let graph = InstrumentedGraphBuilder::new(config)
+            .with_tracing(true)
+            .with_metrics(meter.clone())
+            .with_service_name("my-graph-service")
+            .with_statement_recording(false) // Don't record statements for security
+            .build()
+            .await?;
+
+        // Execute some queries - both tracing and metrics will be recorded
+        graph.execute(query("CREATE (n:Person {name: 'Alice', age: 30})")).await?;
+        graph.execute(query("CREATE (n:Person {name: 'Bob', age: 25})")).await?;
+        graph.execute(query("MATCH (n:Person) RETURN n.name as name, n.age as age")).await?;
+
+        // Start a transaction with metrics
+        let mut txn = graph.start_txn().await?;
+        txn.run(query("CREATE (n:Product {name: 'Widget', price: 9.99})")).await?;
+        txn.run(query("CREATE (n:Product {name: 'Gadget', price: 19.99})")).await?;
+        txn.commit().await?; // Transaction duration will be recorded
+    }
+
+    // Example 2: Using the extension trait pattern
+    println!("\nExample 2: Extension Trait Pattern");
+    {
+        use neo4rs::Graph;
+        
+        // Create a regular Neo4j connection
+        let graph = Graph::new("bolt://localhost:7687", "neo4j", "password").await?;
+        
+        // Convert to instrumented with default tracing only
+        let instrumented = graph.with_telemetry().await?;
+        
+        // Use as normal - tracing will be automatic
+        instrumented.execute(query("MATCH (n:Person) RETURN count(n) as count")).await?;
+    }
+
+    // Example 3: Ad-hoc tracing without full instrumentation
+    println!("\nExample 3: Ad-hoc Tracing");
+    {
+        use neo4rs::Graph;
+        
+        let graph = Graph::new("bolt://localhost:7687", "neo4j", "password").await?;
+        
+        // Execute individual queries with tracing
+        graph.execute_traced(query("MATCH (n) RETURN count(n) as total")).await?;
+        graph.run_traced(query("CREATE INDEX person_name IF NOT EXISTS FOR (n:Person) ON (n.name)")).await?;
+    }
+
+    // Example 4: Using the extension trait builder for custom configuration
+    println!("\nExample 4: Extension Trait Builder");
+    {
+        use neo4rs::Graph;
+        
+        let graph = Graph::new("bolt://localhost:7687", "neo4j", "password").await?;
+        
+        let instrumented = graph
+            .with_telemetry_builder()
+            .with_metrics(meter.clone())
+            .with_service_name("custom-service")
+            .with_statement_recording(true) // Enable for debugging
+            .build()
+            .await?;
+        
+        instrumented.execute(query("MATCH (n:Product) RETURN n.name, n.price")).await?;
+    }
+
+    // Export metrics (in a real application, you'd expose these via an HTTP endpoint)
+    println!("\nMetrics would be exported to Prometheus/OTLP here");
+
+    Ok(())
+}
+
+// Example output:
+// 
+// Example 1: Builder Pattern
+// [Tracing spans and metrics recorded for all operations]
+//
+// Example 2: Extension Trait Pattern  
+// [Tracing spans recorded]
+//
+// Example 3: Ad-hoc Tracing
+// [Individual spans for specific queries]
+//
+// Example 4: Extension Trait Builder
+// [Tracing and metrics with custom configuration]
