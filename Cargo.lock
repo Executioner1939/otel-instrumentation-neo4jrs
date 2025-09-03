@@ -665,7 +665,7 @@ dependencies = [
 
 [[package]]
 name = "otel-instrumentation-neo4jrs"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "futures-util",
  "neo4rs",
