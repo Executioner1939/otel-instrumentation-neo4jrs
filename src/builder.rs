@@ -52,6 +52,7 @@ impl InstrumentedGraphBuilder {
     /// # Arguments
     ///
     /// * `config` - The Neo4j connection configuration
+    #[must_use]
     pub fn new(config: Config) -> Self {
         Self {
             config,
@@ -70,6 +71,7 @@ impl InstrumentedGraphBuilder {
     /// # Arguments
     ///
     /// * `enabled` - Whether to enable tracing
+    #[must_use]
     pub fn with_tracing(mut self, enabled: bool) -> Self {
         self.enable_tracing = enabled;
         self
@@ -80,6 +82,7 @@ impl InstrumentedGraphBuilder {
     /// # Arguments
     ///
     /// * `meter` - The OpenTelemetry meter to use for metrics
+    #[must_use]
     pub fn with_metrics(mut self, meter: Meter) -> Self {
         self.metrics_builder = self.metrics_builder.with_meter(meter);
         self
@@ -90,6 +93,7 @@ impl InstrumentedGraphBuilder {
     /// # Arguments
     ///
     /// * `name` - The service name
+    #[must_use]
     pub fn with_service_name(mut self, name: impl Into<String>) -> Self {
         self.service_name = Some(name.into());
         self
@@ -103,6 +107,7 @@ impl InstrumentedGraphBuilder {
     /// # Arguments
     ///
     /// * `enabled` - Whether to record statements
+    #[must_use]
     pub fn with_statement_recording(mut self, enabled: bool) -> Self {
         self.record_statement = enabled;
         self
@@ -115,6 +120,7 @@ impl InstrumentedGraphBuilder {
     /// # Arguments
     ///
     /// * `length` - The maximum statement length
+    #[must_use]
     pub fn with_max_statement_length(mut self, length: usize) -> Self {
         self.max_statement_length = length;
         self
@@ -139,7 +145,6 @@ impl InstrumentedGraphBuilder {
             graph,
             self.enable_tracing,
             metrics,
-            self.service_name,
             self.record_statement,
             self.max_statement_length,
         ).await
@@ -163,11 +168,13 @@ pub struct TelemetryConfig {
 
 impl TelemetryConfig {
     /// Create a new configuration with defaults
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
     
     /// Create a configuration with tracing only (no metrics)
+    #[must_use]
     pub fn tracing_only() -> Self {
         Self {
             tracing_enabled: true,
@@ -179,7 +186,8 @@ impl TelemetryConfig {
     }
     
     /// Create a configuration with both tracing and metrics
-    pub fn with_metrics(meter: Meter) -> Self {
+    #[must_use]
+    pub fn with_metrics(meter: &Meter) -> Self {
         Self {
             tracing_enabled: true,
             record_statement: false,
@@ -190,11 +198,13 @@ impl TelemetryConfig {
     }
     
     /// Check if any telemetry is enabled
+    #[must_use]
     pub fn is_enabled(&self) -> bool {
         self.tracing_enabled || self.metrics.is_some()
     }
     
     /// Check if metrics are enabled
+    #[must_use]
     pub fn has_metrics(&self) -> bool {
         self.metrics.is_some()
     }

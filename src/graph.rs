@@ -97,8 +97,9 @@ pub struct InstrumentedGraph {
     inner: Graph,
     info: Neo4jConnectionInfo,
     metrics: Option<Arc<Neo4jMetrics>>,
-    service_name: Option<String>,
+    #[allow(dead_code)]
     record_statement: bool,
+    #[allow(dead_code)]
     max_statement_length: usize,
 }
 
@@ -106,11 +107,14 @@ impl InstrumentedGraph {
     /// Create an instrumented graph with custom options
     ///
     /// This is primarily used by the builder pattern.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`neo4rs::Error`] if connection information cannot be retrieved from the Neo4j server.
     pub async fn with_options(
         graph: Graph,
         _enable_tracing: bool,
         metrics: Option<Arc<Neo4jMetrics>>,
-        service_name: Option<String>,
         record_statement: bool,
         max_statement_length: usize,
     ) -> Result<Self, neo4rs::Error> {
@@ -121,7 +125,6 @@ impl InstrumentedGraph {
             inner: graph,
             info,
             metrics,
-            service_name,
             record_statement,
             max_statement_length,
         })
@@ -130,6 +133,10 @@ impl InstrumentedGraph {
     /// Create an instrumented graph from an existing graph connection
     ///
     /// This is used by the extension trait.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`neo4rs::Error`] if connection information cannot be retrieved from the Neo4j server.
     pub async fn from_graph(graph: Graph) -> Result<Self, neo4rs::Error> {
         let info = Self::get_connection_info(&graph).await
             .map_err(Self::convert_instrumentation_error)?;
@@ -138,7 +145,6 @@ impl InstrumentedGraph {
             inner: graph,
             info,
             metrics: None,
-            service_name: None,
             record_statement: false,
             max_statement_length: 1024,
         })
@@ -160,7 +166,6 @@ impl InstrumentedGraph {
             inner: graph,
             info,
             metrics: None, // Would need to expose builder fields or refactor
-            service_name: None,
             record_statement: false,
             max_statement_length: 1024,
         })
@@ -168,14 +173,13 @@ impl InstrumentedGraph {
     
     /// Helper to convert instrumentation errors to neo4rs errors for API compatibility
     fn convert_instrumentation_error(e: InstrumentationError) -> neo4rs::Error {
-        match e {
-            InstrumentationError::Neo4jError(neo4j_err) => neo4j_err,
-            _ => {
-                // Log the instrumentation error and return a generic IO error
-                warn!("Instrumentation error while retrieving connection info: {}", e);
-                neo4rs::Error::IOError {
-                    detail: std::io::Error::other("Failed to retrieve connection information"),
-                }
+        if let InstrumentationError::Neo4jError(neo4j_err) = e {
+            neo4j_err
+        } else {
+            // Log the instrumentation error and return a generic IO error
+            warn!("Instrumentation error while retrieving connection info: {}", e);
+            neo4rs::Error::IOError {
+                detail: std::io::Error::other("Failed to retrieve connection information"),
             }
         }
     }
@@ -211,7 +215,6 @@ impl InstrumentedGraph {
             inner: graph, 
             info, 
             metrics: None,
-            service_name: None,
             record_statement: false,
             max_statement_length: 1024,
         })
@@ -250,7 +253,6 @@ impl InstrumentedGraph {
             inner: graph, 
             info, 
             metrics: None,
-            service_name: None,
             record_statement: false,
             max_statement_length: 1024,
         })
@@ -297,7 +299,7 @@ impl InstrumentedGraph {
         // Record metrics if enabled
         if let Some(metrics) = &self.metrics {
             if let Some(timer) = timer {
-                timer.record_query(
+                let _ = timer.record_query(
                     metrics,
                     result.is_ok(),
                     None, // Operation type not available from Query

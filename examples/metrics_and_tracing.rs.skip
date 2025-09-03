@@ -19,9 +19,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     // Initialize metrics provider
-    let resource = Resource::new(vec![
-        KeyValue::new("service.name", "neo4j-example"),
-    ]);
+    let resource = Resource::default()
+        .merge(&Resource::new(vec![
+            KeyValue::new("service.name", "neo4j-example"),
+        ]));
     
     let meter_provider = SdkMeterProvider::builder()
         .with_resource(resource)

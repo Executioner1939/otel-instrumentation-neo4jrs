@@ -44,9 +44,10 @@ impl Neo4jMetrics {
     ///
     /// let meter_provider = // ... initialize meter provider
     /// let meter = meter_provider.meter("neo4j");
-    /// let metrics = Neo4jMetrics::new(meter);
+    /// let metrics = Neo4jMetrics::new(&meter);
     /// ```
-    pub fn new(meter: Meter) -> Self {
+    #[must_use]
+    pub fn new(meter: &Meter) -> Self {
         Self {
             queries_total: meter
                 .u64_counter("neo4j.queries.total")
@@ -109,7 +110,10 @@ impl Neo4jMetrics {
         }
         
         self.queries_total.add(1, &attributes);
-        self.query_duration.record(duration.as_millis() as f64, &attributes);
+        // Convert duration to milliseconds safely
+        // For durations up to ~24 days, this will be accurate to the millisecond
+        let millis = duration.as_secs_f64() * 1000.0;
+        self.query_duration.record(millis, &attributes);
         
         if !success {
             self.errors_total.add(1, &attributes);
@@ -142,7 +146,9 @@ impl Neo4jMetrics {
             KeyValue::new("outcome", if committed { "commit" } else { "rollback" }),
         ];
         
-        self.transaction_duration.record(duration.as_millis() as f64, &attributes);
+        // Convert duration to milliseconds safely
+        let millis = duration.as_secs_f64() * 1000.0;
+        self.transaction_duration.record(millis, &attributes);
         
         if committed {
             self.transaction_commits.add(1, &attributes);
@@ -190,6 +196,7 @@ pub struct MetricsBuilder {
 
 impl MetricsBuilder {
     /// Create a new metrics builder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             meter: None,
@@ -202,6 +209,7 @@ impl MetricsBuilder {
     /// # Arguments
     ///
     /// * `meter` - The OpenTelemetry meter to use
+    #[must_use]
     pub fn with_meter(mut self, meter: Meter) -> Self {
         self.meter = Some(meter);
         self.enabled = true;
@@ -211,9 +219,10 @@ impl MetricsBuilder {
     /// Build the metrics instance
     ///
     /// Returns `None` if metrics are not enabled
+    #[must_use]
     pub fn build(self) -> Option<Arc<Neo4jMetrics>> {
         if self.enabled {
-            self.meter.map(Neo4jMetrics::new).map(Arc::new)
+            self.meter.as_ref().map(Neo4jMetrics::new).map(Arc::new)
         } else {
             None
         }
@@ -233,6 +242,7 @@ pub struct OperationTimer {
 
 impl OperationTimer {
     /// Start a new timer
+    #[must_use]
     pub fn start() -> Self {
         Self {
             start: std::time::Instant::now(),
@@ -240,6 +250,7 @@ impl OperationTimer {
     }
     
     /// Get the elapsed duration
+    #[must_use]
     pub fn elapsed(&self) -> Duration {
         self.start.elapsed()
     }
@@ -252,6 +263,7 @@ impl OperationTimer {
     /// * `success` - Whether the operation was successful
     /// * `operation` - The operation type
     /// * `database` - The database name
+    #[must_use]
     pub fn record_query(self, metrics: &Neo4jMetrics, success: bool, operation: Option<&str>, database: &str) -> Duration {
         let duration = self.elapsed();
         metrics.record_query(duration, success, operation, database);
@@ -269,7 +281,7 @@ mod tests {
     fn test_metrics_creation() {
         let provider = SdkMeterProvider::default();
         let meter = provider.meter("test");
-        let metrics = Neo4jMetrics::new(meter);
+        let metrics = Neo4jMetrics::new(&meter);
         
         // Test that we can record metrics without panicking
         metrics.record_query(Duration::from_millis(100), true, Some("MATCH"), "neo4j");
@@ -302,7 +314,7 @@ mod tests {
     fn test_operation_timer() {
         let provider = SdkMeterProvider::default();
         let meter = provider.meter("test");
-        let metrics = Neo4jMetrics::new(meter);
+        let metrics = Neo4jMetrics::new(&meter);
         
         let timer = OperationTimer::start();
         std::thread::sleep(Duration::from_millis(10));

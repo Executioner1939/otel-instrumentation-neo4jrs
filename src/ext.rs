@@ -161,30 +161,38 @@ impl GraphTelemetryBuilder {
     }
     
     /// Enable or disable tracing
+    #[must_use]
     pub fn with_tracing(mut self, enabled: bool) -> Self {
         self.builder = self.builder.with_tracing(enabled);
         self
     }
     
     /// Enable metrics collection
+    #[must_use]
     pub fn with_metrics(mut self, meter: opentelemetry::metrics::Meter) -> Self {
         self.builder = self.builder.with_metrics(meter);
         self
     }
     
     /// Set the service name
+    #[must_use]
     pub fn with_service_name(mut self, name: impl Into<String>) -> Self {
         self.builder = self.builder.with_service_name(name);
         self
     }
     
     /// Enable statement recording
+    #[must_use]
     pub fn with_statement_recording(mut self, enabled: bool) -> Self {
         self.builder = self.builder.with_statement_recording(enabled);
         self
     }
     
     /// Build the instrumented graph
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`neo4rs::Error`] if connection information cannot be retrieved from the Neo4j server.
     pub async fn build(self) -> Result<InstrumentedGraph, neo4rs::Error> {
         InstrumentedGraph::from_graph_with_builder(self.graph, self.builder).await
     }
@@ -202,6 +210,7 @@ pub trait QueryExt {
     /// # Arguments
     ///
     /// * `comment` - The comment to add
+    #[must_use]
     fn with_trace_comment(self, comment: &str) -> Self;
     
     /// Tag the query with a name for easier identification in traces
@@ -211,6 +220,7 @@ pub trait QueryExt {
     /// # Arguments
     ///
     /// * `name` - The name/identifier for this query
+    #[must_use]
     fn with_operation_name(self, name: &str) -> Self;
 }
 
