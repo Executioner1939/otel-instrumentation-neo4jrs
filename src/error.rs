@@ -32,10 +32,20 @@ impl fmt::Display for InstrumentationError {
                 write!(f, "Neo4j driver error: {err}")
             }
             InstrumentationError::ConnectionInfoError { source, context } => {
-                write!(f, "Failed to retrieve connection information ({context}): {source}")
+                write!(
+                    f,
+                    "Failed to retrieve connection information ({context}): {source}"
+                )
             }
-            InstrumentationError::ConfigurationError { variable, value, error } => {
-                write!(f, "Failed to parse environment variable {variable}='{value}': {error}")
+            InstrumentationError::ConfigurationError {
+                variable,
+                value,
+                error,
+            } => {
+                write!(
+                    f,
+                    "Failed to parse environment variable {variable}='{value}': {error}"
+                )
             }
         }
     }

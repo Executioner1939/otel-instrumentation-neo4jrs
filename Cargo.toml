@@ -1,6 +1,6 @@
 [package]
 name = "otel-instrumentation-neo4jrs"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Richard Peters <shadowrhyder@gmail.com>"]
 license = "MIT"
 edition = "2021"

@@ -1,6 +1,6 @@
-use neo4rs::{Txn, Query, RowStream};
 use crate::graph::Neo4jConnectionInfo;
 use crate::metrics::{Neo4jMetrics, OperationTimer};
+use neo4rs::{Query, RowStream, Txn};
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
@@ -21,10 +21,10 @@ use tracing::{debug, instrument};
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let graph = InstrumentedGraph::new("bolt://localhost:7687", "neo4j", "password").await?;
 /// let mut txn = graph.start_txn().await?;
-/// 
+///
 /// txn.run(query("CREATE (n:Person {name: 'Alice'})")).await?;
 /// txn.run(query("CREATE (n:Person {name: 'Bob'})")).await?;
-/// 
+///
 /// txn.commit().await?;
 /// # Ok(())
 /// # }
@@ -39,14 +39,14 @@ pub struct InstrumentedTxn {
 impl InstrumentedTxn {
     /// Create a new instrumented transaction wrapper
     pub(crate) fn new(
-        inner: Txn, 
+        inner: Txn,
         info: Neo4jConnectionInfo,
         metrics: Option<Arc<Neo4jMetrics>>,
     ) -> Self {
         let transaction_timer = metrics.as_ref().map(|_| OperationTimer::start());
-        
-        Self { 
-            inner, 
+
+        Self {
+            inner,
             info,
             metrics,
             transaction_timer,
@@ -143,9 +143,9 @@ impl InstrumentedTxn {
     )]
     pub async fn commit(mut self) -> Result<(), neo4rs::Error> {
         debug!("committing transaction");
-        
+
         let result = self.inner.commit().await;
-        
+
         // Record transaction metrics if enabled
         if let Some(metrics) = &self.metrics {
             if let Some(timer) = self.transaction_timer.take() {
@@ -153,7 +153,7 @@ impl InstrumentedTxn {
                 metrics.record_transaction_end(duration, result.is_ok(), &self.info.database_name);
             }
         }
-        
+
         result
     }
 
@@ -177,9 +177,9 @@ impl InstrumentedTxn {
     )]
     pub async fn rollback(mut self) -> Result<(), neo4rs::Error> {
         debug!("rolling back transaction");
-        
+
         let result = self.inner.rollback().await;
-        
+
         // Record transaction metrics if enabled
         if let Some(metrics) = &self.metrics {
             if let Some(timer) = self.transaction_timer.take() {
@@ -187,7 +187,7 @@ impl InstrumentedTxn {
                 metrics.record_transaction_end(duration, false, &self.info.database_name);
             }
         }
-        
+
         result
     }
 
@@ -208,7 +208,6 @@ impl InstrumentedTxn {
     pub fn inner_mut(&mut self) -> &mut Txn {
         &mut self.inner
     }
-
 }
 
 #[cfg(test)]
@@ -222,7 +221,7 @@ mod tests {
             server_port: 7687,
             version: "5.0.0".to_string(),
         };
-        
+
         assert_eq!(info.database_name, "test");
         assert_eq!(info.server_address, "localhost");
         assert_eq!(info.server_port, 7687);

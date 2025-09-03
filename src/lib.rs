@@ -13,9 +13,9 @@ Due to neo4rs API limitations, this instrumentation provides basic telemetry wit
 
 # Establishing a connection
 
-`otel-instrumentation-neo4jrs` provides an instrumented Graph wrapper that 
+`otel-instrumentation-neo4jrs` provides an instrumented Graph wrapper that
 implements the same interface as the `neo4rs::Graph`. As this struct provides the same
-API as the underlying `neo4rs` implementation, establishing a connection is done in the 
+API as the underlying `neo4rs` implementation, establishing a connection is done in the
 same way as the original crate.
 
 ```
@@ -70,7 +70,7 @@ All spans include the following attributes following OpenTelemetry semantic conv
 
 ### Connection Attributes (when available)
 - `db.name`: The name of the Neo4j database
-- `server.address`: Neo4j server hostname or IP address  
+- `server.address`: Neo4j server hostname or IP address
 - `server.port`: Neo4j server port number
 - `db.version`: Neo4j server version string
 
@@ -122,7 +122,7 @@ All instrumented operations return the same async types as the underlying neo4rs
 
 The instrumentation adds minimal overhead:
 - Span creation and attribute setting
-- Timestamp recording for operation duration  
+- Timestamp recording for operation duration
 - Connection metadata queries (cached after first retrieval)
 
 ### Transaction Support
@@ -142,16 +142,16 @@ Transactions are fully supported with proper span hierarchies:
 */
 #![warn(clippy::all, clippy::pedantic)]
 
-pub mod graph;
-pub mod txn;
-pub mod error;
-pub mod metrics;
 pub mod builder;
+pub mod error;
 pub mod ext;
+pub mod graph;
+pub mod metrics;
+pub mod txn;
 
-pub use graph::InstrumentedGraph;
-pub use txn::InstrumentedTxn;
-pub use error::InstrumentationError;
-pub use metrics::{Neo4jMetrics, MetricsBuilder};
 pub use builder::{InstrumentedGraphBuilder, TelemetryConfig};
+pub use error::InstrumentationError;
 pub use ext::{GraphExt, QueryExt};
+pub use graph::InstrumentedGraph;
+pub use metrics::{MetricsBuilder, Neo4jMetrics};
+pub use txn::InstrumentedTxn;

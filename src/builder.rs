@@ -63,7 +63,7 @@ impl InstrumentedGraphBuilder {
             max_statement_length: 1024,
         }
     }
-    
+
     /// Enable or disable tracing
     ///
     /// Tracing is enabled by default.
@@ -76,7 +76,7 @@ impl InstrumentedGraphBuilder {
         self.enable_tracing = enabled;
         self
     }
-    
+
     /// Enable metrics collection with the provided meter
     ///
     /// # Arguments
@@ -87,7 +87,7 @@ impl InstrumentedGraphBuilder {
         self.metrics_builder = self.metrics_builder.with_meter(meter);
         self
     }
-    
+
     /// Set the service name for telemetry
     ///
     /// # Arguments
@@ -98,7 +98,7 @@ impl InstrumentedGraphBuilder {
         self.service_name = Some(name.into());
         self
     }
-    
+
     /// Enable recording of Cypher statements in spans
     ///
     /// **Warning**: This may expose sensitive information in your queries.
@@ -112,7 +112,7 @@ impl InstrumentedGraphBuilder {
         self.record_statement = enabled;
         self
     }
-    
+
     /// Set the maximum length for recorded statements
     ///
     /// Statements longer than this will be truncated.
@@ -125,7 +125,7 @@ impl InstrumentedGraphBuilder {
         self.max_statement_length = length;
         self
     }
-    
+
     /// Build the instrumented graph connection
     ///
     /// # Errors
@@ -135,19 +135,20 @@ impl InstrumentedGraphBuilder {
     pub async fn build(self) -> Result<InstrumentedGraph, neo4rs::Error> {
         let graph = Graph::connect(self.config).await?;
         let metrics = self.metrics_builder.build();
-        
+
         // Increment connection counter if metrics are enabled
         if let Some(ref m) = metrics {
             m.increment_connections();
         }
-        
+
         InstrumentedGraph::with_options(
             graph,
             self.enable_tracing,
             metrics,
             self.record_statement,
             self.max_statement_length,
-        ).await
+        )
+        .await
     }
 }
 
@@ -172,7 +173,7 @@ impl TelemetryConfig {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Create a configuration with tracing only (no metrics)
     #[must_use]
     pub fn tracing_only() -> Self {
@@ -184,7 +185,7 @@ impl TelemetryConfig {
             metrics: None,
         }
     }
-    
+
     /// Create a configuration with both tracing and metrics
     #[must_use]
     pub fn with_metrics(meter: &Meter) -> Self {
@@ -196,13 +197,13 @@ impl TelemetryConfig {
             metrics: Some(Arc::new(Neo4jMetrics::new(meter))),
         }
     }
-    
+
     /// Check if any telemetry is enabled
     #[must_use]
     pub fn is_enabled(&self) -> bool {
         self.tracing_enabled || self.metrics.is_some()
     }
-    
+
     /// Check if metrics are enabled
     #[must_use]
     pub fn has_metrics(&self) -> bool {
@@ -226,20 +227,20 @@ impl Default for TelemetryConfig {
 mod tests {
     use super::*;
     use neo4rs::ConfigBuilder;
-    
+
     #[test]
     fn test_builder_defaults() {
         let config = ConfigBuilder::default()
             .uri("bolt://localhost:7687")
             .build()
             .unwrap();
-        
+
         let builder = InstrumentedGraphBuilder::new(config);
         assert!(builder.enable_tracing);
         assert!(!builder.record_statement);
         assert_eq!(builder.max_statement_length, 1024);
     }
-    
+
     #[test]
     fn test_telemetry_config_defaults() {
         let config = TelemetryConfig::default();
@@ -248,7 +249,7 @@ mod tests {
         assert_eq!(config.max_statement_length, 1024);
         assert!(config.metrics.is_none());
     }
-    
+
     #[test]
     fn test_telemetry_config_tracing_only() {
         let config = TelemetryConfig::tracing_only();

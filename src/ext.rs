@@ -3,9 +3,9 @@
 //! This module provides extension traits that allow easy addition of OpenTelemetry
 //! instrumentation to existing Neo4j graph connections and queries.
 
-use neo4rs::{Graph, Query};
-use crate::graph::InstrumentedGraph;
 use crate::builder::InstrumentedGraphBuilder;
+use crate::graph::InstrumentedGraph;
+use neo4rs::{Graph, Query};
 use tracing::instrument;
 
 /// Extension trait for Neo4j Graph to add instrumentation capabilities
@@ -21,10 +21,10 @@ use tracing::instrument;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let graph = Graph::new("bolt://localhost:7687", "neo4j", "password").await?;
-/// 
+///
 /// // Wrap with telemetry
 /// let instrumented = graph.with_telemetry().await?;
-/// 
+///
 /// // Now use the instrumented graph as normal
 /// # Ok(())
 /// # }
@@ -37,8 +37,10 @@ pub trait GraphExt: Sized {
     /// # Errors
     ///
     /// Returns an error if connection information cannot be retrieved from the server.
-    fn with_telemetry(self) -> impl std::future::Future<Output = Result<InstrumentedGraph, neo4rs::Error>> + Send;
-    
+    fn with_telemetry(
+        self,
+    ) -> impl std::future::Future<Output = Result<InstrumentedGraph, neo4rs::Error>> + Send;
+
     /// Create a builder for configuring telemetry on this graph
     ///
     /// This allows full control over tracing and metrics configuration.
@@ -55,7 +57,7 @@ pub trait GraphExt: Sized {
     /// let meter = meter_provider.meter("neo4j");
     ///
     /// let graph = Graph::new("bolt://localhost:7687", "neo4j", "password").await?;
-    /// 
+    ///
     /// let instrumented = graph
     ///     .with_telemetry_builder()
     ///     .with_metrics(meter)
@@ -66,7 +68,7 @@ pub trait GraphExt: Sized {
     /// # }
     /// ```
     fn with_telemetry_builder(self) -> GraphTelemetryBuilder;
-    
+
     /// Execute a query with ad-hoc tracing
     ///
     /// This allows tracing individual queries without wrapping the entire connection.
@@ -82,7 +84,7 @@ pub trait GraphExt: Sized {
         &self,
         query: Query,
     ) -> impl std::future::Future<Output = Result<(), neo4rs::Error>> + Send;
-    
+
     /// Run a query with ad-hoc tracing (no results)
     ///
     /// # Arguments
@@ -102,11 +104,11 @@ impl GraphExt for Graph {
     async fn with_telemetry(self) -> Result<InstrumentedGraph, neo4rs::Error> {
         InstrumentedGraph::from_graph(self).await
     }
-    
+
     fn with_telemetry_builder(self) -> GraphTelemetryBuilder {
         GraphTelemetryBuilder::new(self)
     }
-    
+
     #[instrument(
         fields(
             db.system = "neo4j",
@@ -125,7 +127,7 @@ impl GraphExt for Graph {
         tracing::debug!("traced query completed, processed {} rows", row_count);
         Ok(())
     }
-    
+
     #[instrument(
         fields(
             db.system = "neo4j",
@@ -153,41 +155,41 @@ impl GraphTelemetryBuilder {
             .uri("bolt://localhost:7687")
             .build()
             .unwrap();
-        
+
         Self {
             graph,
             builder: InstrumentedGraphBuilder::new(config),
         }
     }
-    
+
     /// Enable or disable tracing
     #[must_use]
     pub fn with_tracing(mut self, enabled: bool) -> Self {
         self.builder = self.builder.with_tracing(enabled);
         self
     }
-    
+
     /// Enable metrics collection
     #[must_use]
     pub fn with_metrics(mut self, meter: opentelemetry::metrics::Meter) -> Self {
         self.builder = self.builder.with_metrics(meter);
         self
     }
-    
+
     /// Set the service name
     #[must_use]
     pub fn with_service_name(mut self, name: impl Into<String>) -> Self {
         self.builder = self.builder.with_service_name(name);
         self
     }
-    
+
     /// Enable statement recording
     #[must_use]
     pub fn with_statement_recording(mut self, enabled: bool) -> Self {
         self.builder = self.builder.with_statement_recording(enabled);
         self
     }
-    
+
     /// Build the instrumented graph
     ///
     /// # Errors
@@ -212,7 +214,7 @@ pub trait QueryExt {
     /// * `comment` - The comment to add
     #[must_use]
     fn with_trace_comment(self, comment: &str) -> Self;
-    
+
     /// Tag the query with a name for easier identification in traces
     ///
     /// This adds a special comment that can be parsed by instrumentation.
@@ -231,7 +233,7 @@ impl QueryExt for Query {
         // For now, we'll just return the query unchanged
         self
     }
-    
+
     fn with_operation_name(self, _name: &str) -> Self {
         // Similar limitation as above
         // In a real implementation, we might need to wrap Query in our own type
@@ -242,21 +244,21 @@ impl QueryExt for Query {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_graph_ext_traits() {
         // This test would require a running Neo4j instance
         // For unit testing, we're just checking that the trait methods exist
-        
+
         // The actual Graph::new would fail without a real Neo4j instance
         // So we're just testing compilation here
     }
-    
+
     #[test]
     fn test_query_ext_traits() {
         let query = neo4rs::query("MATCH (n) RETURN n");
         let _ = query.with_trace_comment("test comment");
-        
+
         let query2 = neo4rs::query("CREATE (n:Person {name: $name})");
         let _ = query2.with_operation_name("create_person");
     }
