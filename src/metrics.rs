@@ -192,7 +192,7 @@ impl Neo4jMetrics {
     }
 }
 
-/// Builder for configuring metrics collection
+/// Builder for configuring a metrics collection
 pub struct MetricsBuilder {
     meter: Option<Meter>,
     enabled: bool,
@@ -208,7 +208,7 @@ impl MetricsBuilder {
         }
     }
 
-    /// Enable metrics collection with the provided meter
+    /// Enable a metrics collection with the provided meter
     ///
     /// # Arguments
     ///

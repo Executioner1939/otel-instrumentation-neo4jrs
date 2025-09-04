@@ -4,31 +4,27 @@ use neo4rs::{Query, RowStream, Txn};
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-/// An instrumented wrapper around `neo4rs::Txn` that adds OpenTelemetry tracing
+/// Represents an instrumented Neo4j transaction.
 ///
-/// This struct provides the same API as `neo4rs::Txn` but adds comprehensive
-/// OpenTelemetry instrumentation following database semantic conventions.
+/// The `InstrumentedTxn` struct wraps around a Neo4j transaction (`Txn`) and includes additional
+/// information to facilitate monitoring, instrumentation, and performance analysis. This can
+/// be useful for gathering metrics or tracking the transaction's lifecycle within a system.
 ///
-/// Transactions create a span hierarchy where the transaction itself is a parent
-/// span and individual operations within the transaction are child spans.
+/// # Fields
 ///
-/// # Example
+/// * `inner` - The underlying Neo4j transaction object (`Txn`) that this structure wraps around.
+/// * `info` - The connection information (`Neo4jConnectionInfo`) associated with this transaction.
+/// * `metrics` - An optional shared reference (`Arc`) to the Neo4j metrics collector (`Neo4jMetrics`) 
+///   for recording runtime monitoring and instrumentation data. If `None`, metrics collection is not performed.
+/// * `transaction_timer` - An optional timer (`OperationTimer`) to measure the duration of this transaction
+///   for performance profiling. If `None`, timing data is not collected.
 ///
-/// ```
-/// use otel_instrumentation_neo4jrs::InstrumentedGraph;
-/// use neo4rs::{ConfigBuilder, query};
+/// # Usage
+/// This struct is designed to enhance visibility into Neo4j transaction operations and provide
+/// tools for debugging or optimizing the application's database interactions.
 ///
-/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let graph = InstrumentedGraph::new("bolt://localhost:7687", "neo4j", "password").await?;
-/// let mut txn = graph.start_txn().await?;
-///
-/// txn.run(query("CREATE (n:Person {name: 'Alice'})")).await?;
-/// txn.run(query("CREATE (n:Person {name: 'Bob'})")).await?;
-///
-/// txn.commit().await?;
-/// # Ok(())
-/// # }
-/// ```
+/// Note: Ensure that metrics and timing utilities are properly configured if monitoring and
+/// profiling are required, as they are optional in this implementation.
 pub struct InstrumentedTxn {
     inner: Txn,
     info: Neo4jConnectionInfo,
@@ -63,8 +59,7 @@ impl InstrumentedTxn {
         fields(
             db.system="neo4j",
             db.name=%self.info.database_name,
-            server.address=%self.info.server_address,
-            server.port=self.info.server_port,
+            db.connection_string=%self.info.connection_string,
             db.version=%self.info.version,
             otel.kind="client",
         ),
@@ -86,8 +81,7 @@ impl InstrumentedTxn {
         fields(
             db.system="neo4j",
             db.name=%self.info.database_name,
-            server.address=%self.info.server_address,
-            server.port=self.info.server_port,
+            db.connection_string=%self.info.connection_string,
             db.version=%self.info.version,
             otel.kind="client",
         ),
@@ -109,8 +103,7 @@ impl InstrumentedTxn {
         fields(
             db.system="neo4j",
             db.name=%self.info.database_name,
-            server.address=%self.info.server_address,
-            server.port=self.info.server_port,
+            db.connection_string=%self.info.connection_string,
             db.version=%self.info.version,
             otel.kind="client",
             db.operation.batch.size=queries.len(),
@@ -133,8 +126,7 @@ impl InstrumentedTxn {
         fields(
             db.system="neo4j",
             db.name=%self.info.database_name,
-            server.address=%self.info.server_address,
-            server.port=self.info.server_port,
+            db.connection_string=%self.info.connection_string,
             db.version=%self.info.version,
             otel.kind="client",
         ),
@@ -167,8 +159,7 @@ impl InstrumentedTxn {
         fields(
             db.system="neo4j",
             db.name=%self.info.database_name,
-            server.address=%self.info.server_address,
-            server.port=self.info.server_port,
+            db.connection_string=%self.info.connection_string,
             db.version=%self.info.version,
             otel.kind="client",
         ),
@@ -217,14 +208,12 @@ mod tests {
     fn test_txn_wrapper() {
         let info = crate::graph::Neo4jConnectionInfo {
             database_name: "test".to_string(),
-            server_address: "localhost".to_string(),
-            server_port: 7687,
+            connection_string: "bolt://localhost:7687".to_string(),
             version: "5.0.0".to_string(),
         };
 
         assert_eq!(info.database_name, "test");
-        assert_eq!(info.server_address, "localhost");
-        assert_eq!(info.server_port, 7687);
+        assert_eq!(info.connection_string, "bolt://localhost:7687");
         assert_eq!(info.version, "5.0.0");
     }
 }

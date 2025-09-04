@@ -132,26 +132,18 @@ Transactions are fully supported with proper span hierarchies:
 - Operations within transactions create child spans
 - Transaction commit/rollback creates completion spans
 
-## TODO
-
-- [ ] Add support for batch operations
-- [ ] Add metrics collection for connection pool statistics
-- [ ] Add support for custom span processors
-- [ ] Consider query sanitization utilities
-
 */
 #![warn(clippy::all, clippy::pedantic)]
 
 pub mod builder;
 pub mod error;
-pub mod ext;
 pub mod graph;
 pub mod metrics;
+pub mod telemetry;
 pub mod txn;
 
-pub use builder::{InstrumentedGraphBuilder, TelemetryConfig};
+pub use builder::InstrumentedGraphBuilder;
 pub use error::InstrumentationError;
-pub use ext::{GraphExt, QueryExt};
-pub use graph::InstrumentedGraph;
+pub use graph::{InstrumentedGraph, InstrumentedGraphConfig};
 pub use metrics::{MetricsBuilder, Neo4jMetrics};
 pub use txn::InstrumentedTxn;

@@ -1,4 +1,4 @@
-name: Release
+name: CI
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - 'v*.*.*'
       - 'v*.*.*-*'
   pull_request:
-    branches: [main, master]
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -30,7 +30,7 @@ env:
   CARGO_BUILD_JOBS: -1
 
 jobs:
-  # Linting job
+  # Linting job - runs on tags and PRs
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -65,7 +65,7 @@ jobs:
       - name: Run clippy
         run: cargo clippy --all-features --all-targets -- -D warnings
 
-  # Check job
+  # Check job - runs on tags and PRs
   check:
     name: Check
     runs-on: ubuntu-latest
@@ -93,26 +93,10 @@ jobs:
       - name: Run cargo check
         run: cargo check --all-features --all-targets
 
-  # Tests job
+  # Tests job - runs on tags and PRs (no database service needed, doctests use no_run)
   test:
     name: Test
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: timescale/timescaledb:latest-pg15
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: test_db
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -122,38 +106,27 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y openssl libssl-dev pkg-config postgresql-client
-
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           cache-targets: "true"
           cache-on-failure: "false"
 
-      - name: Wait for PostgreSQL
-        run: |
-          until pg_isready -h localhost -p 5432 -U postgres
-          do
-            echo "Waiting for postgres..."
-            sleep 2
-          done
+      - name: Build
+        run: cargo build --all-features --verbose
 
-      - name: Setup TimescaleDB
-        run: |
-          PGPASSWORD=postgres psql -h localhost -U postgres -d test_db -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
-
-      - name: Run tests
+      - name: Run unit tests
         run: |
           export CARGO_BUILD_JOBS=$(nproc)
-          cargo test --all-features
+          cargo test --all-features --lib
 
-      - name: Run doc tests
+      - name: Run doc tests (no_run - no Neo4j connection required)
         run: cargo test --doc --all-features
 
-  # Documentation generation job
+      - name: Run integration tests
+        run: cargo test --all-features --test '*'
+
+  # Documentation generation job - runs on tags and PRs
   docs:
     name: Generate Documentation
     runs-on: ubuntu-latest
@@ -182,7 +155,7 @@ jobs:
       - name: Test documentation examples
         run: cargo test --doc --all-features
 
-  # Compile job
+  # Compile job - runs on tags and PRs
   compile:
     name: Compile
     runs-on: ${{ matrix.os }}
@@ -229,7 +202,7 @@ jobs:
           cargo build --release --all-features --target ${{ matrix.target }}
         shell: bash
 
-  # Publish to crates.io
+  # Publish to crates.io - ONLY runs on tags
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
@@ -244,11 +217,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ env.RUST_VERSION }}
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y openssl libssl-dev pkg-config
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -287,7 +255,7 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-  # Create GitHub Release
+  # Create GitHub Release - ONLY runs on tags
   github-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
@@ -318,7 +286,7 @@ jobs:
           VERSION=${{ steps.version.outputs.version }}
           
           # Create release notes header
-          echo "## diesel-timescaledb $VERSION" > RELEASE_NOTES.md
+          echo "## otel-instrumentation-neo4jrs $VERSION" > RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
           echo "### What's Changed" >> RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
@@ -326,15 +294,15 @@ jobs:
           # Try to extract changes from CHANGELOG.md if it exists
           if [ -f CHANGELOG.md ]; then
             # Extract section for this version
-            sed -n "/## $VERSION/,/## [0-9]/p" CHANGELOG.md | sed '1d;$d' >> RELEASE_NOTES.md || echo "- Release $VERSION of diesel-timescaledb" >> RELEASE_NOTES.md
+            sed -n "/## $VERSION/,/## [0-9]/p" CHANGELOG.md | sed '1d;$d' >> RELEASE_NOTES.md || echo "- Release $VERSION of otel-instrumentation-neo4jrs" >> RELEASE_NOTES.md
           else
             # Generate changelog from git commits
             if command -v git-cliff &> /dev/null; then
-              git-cliff --latest --strip all >> RELEASE_NOTES.md || echo "- Release $VERSION of diesel-timescaledb" >> RELEASE_NOTES.md
+              git-cliff --latest --strip all >> RELEASE_NOTES.md || echo "- Release $VERSION of otel-instrumentation-neo4jrs" >> RELEASE_NOTES.md
             else
               # Fallback to git log
               echo "### Commits" >> RELEASE_NOTES.md
-              git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> RELEASE_NOTES.md || echo "- Release $VERSION of diesel-timescaledb" >> RELEASE_NOTES.md
+              git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> RELEASE_NOTES.md || echo "- Release $VERSION of otel-instrumentation-neo4jrs" >> RELEASE_NOTES.md
             fi
           fi
           
@@ -342,11 +310,11 @@ jobs:
           echo "### Installation" >> RELEASE_NOTES.md
           echo '```toml' >> RELEASE_NOTES.md
           echo "[dependencies]" >> RELEASE_NOTES.md
-          echo "diesel-timescaledb = \"${VERSION#v}\"" >> RELEASE_NOTES.md
+          echo "otel-instrumentation-neo4jrs = \"${VERSION#v}\"" >> RELEASE_NOTES.md
           echo '```' >> RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
           echo "### Documentation" >> RELEASE_NOTES.md
-          echo "- [API Documentation](https://docs.rs/diesel-timescaledb/${VERSION#v})" >> RELEASE_NOTES.md
+          echo "- [API Documentation](https://docs.rs/otel-instrumentation-neo4jrs/${VERSION#v})" >> RELEASE_NOTES.md
           echo "- [README](https://github.com/${{ github.repository }}/blob/${VERSION}/README.md)" >> RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
           echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$(git describe --tags --abbrev=0 HEAD^)...${VERSION}" >> RELEASE_NOTES.md
