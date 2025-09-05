@@ -1,23 +1,23 @@
-//! An instrumented wrapper around `neo4rs::Graph` that adds OpenTelemetry tracing
+//! An instrumented wrapper around `neo4rs::Graph` that adds OpenTelemetry tracing.
 //!
-//! This struct provides methods for connecting to a Neo4j database,
+//! This module provides methods for connecting to a Neo4j database,
 //! executing queries, and attaching OpenTelemetry instruments following
 //! database semantic conventions. It serves to enhance the usability of the
 //! `neo4rs` crate while embedding observability within a distributed system.
 //!
 //! # Key Features
 //!
-//! - Establishes a connection to Neo4j with OpenTelemetry tracing metadata.
-//! - Supports executing queries with embedded spans for observability.
-//! - Adheres to OpenTelemetry database semantic conventions.
-//! - Handles errors gracefully while converting custom errors into Neo4j errors.
+//! - Establishes a connection to Neo4j with OpenTelemetry tracing metadata
+//! - Supports executing queries with embedded spans for observability
+//! - Adheres to OpenTelemetry database semantic conventions
+//! - Handles errors gracefully while converting custom errors into Neo4j errors
 //!
 //! ## Dependencies
 //!
-//! - `neo4rs`: Used for creating connections and executing queries.
-//! - `tracing`: Used for OpenTelemetry instrumentation.
+//! - `neo4rs`: Used for creating connections and executing queries
+//! - `tracing`: Used for OpenTelemetry instrumentation
 //!
-//! ## Example Usage
+//! # Example Usage
 //!
 //! ```rust,no_run
 //! use otel_instrumentation_neo4jrs::InstrumentedGraph;
@@ -44,12 +44,13 @@
 //! }
 //! ```
 //!
-//! ## Error Handling
+//! # Error Handling
 //!
 //! Most methods return `neo4rs::Error` on failure, which could arise from:
-//! - Issues connecting to the Neo4j database.
-//! - Query execution failures.
-//! - Network connectivity problems.
+//!
+//! - Issues connecting to the Neo4j database
+//! - Query execution failures
+//! - Network connectivity problems
 use crate::builder::InstrumentedGraphBuilder;
 use crate::error::{InstrumentationError, InstrumentationResult};
 use crate::metrics::{Neo4jMetrics, OperationTimer};
@@ -59,12 +60,14 @@ use opentelemetry::global::BoxedTracer;
 use opentelemetry::metrics::Meter;
 use opentelemetry::trace::{Span, SpanKind, Status, Tracer};
 use opentelemetry::KeyValue;
-use opentelemetry_semantic_conventions::attribute::{DB_CONNECTION_STRING, DB_NAMESPACE, DB_OPERATION_NAME, DB_SYSTEM, DB_SYSTEM_NAME, SERVER_ADDRESS};
+use opentelemetry_semantic_conventions::attribute::{
+    DB_NAMESPACE, DB_OPERATION_NAME, DB_SYSTEM_NAME, SERVER_ADDRESS,
+};
 use std::ops::Deref;
 use std::sync::Arc;
 use tracing::{debug, warn};
 
-/// Connection information retrieved from Neo4j server
+/// Connection information retrieved from Neo4j server.
 #[derive(Clone, Debug)]
 pub struct Neo4jConnectionInfo {
     pub database_name: String,
@@ -72,7 +75,7 @@ pub struct Neo4jConnectionInfo {
     pub connection_string: String, // Store sanitized connection URI for tracing
 }
 
-/// Configuration for creating an instrumented Neo4j connection
+/// Configuration for creating an instrumented Neo4j connection.
 ///
 /// This struct is created by the builder and holds the telemetry configuration
 /// until a connection is established.
@@ -82,22 +85,22 @@ pub struct InstrumentedGraphConfig {
 }
 
 impl InstrumentedGraphConfig {
-    /// Create a new configuration with the given telemetry providers
+    /// Creates a new configuration with the given telemetry providers.
     pub(crate) fn new(tracer: Option<BoxedTracer>, meter: Option<Meter>) -> Self {
         Self { tracer, meter }
     }
 
-    /// Connect to Neo4j using the same signature as neo4rs Graph::new()
+    /// Connects to Neo4j using the same signature as neo4rs `Graph::new()`.
     ///
     /// # Arguments
     ///
-    /// * `uri` - The Neo4j connection URI (e.g., "bolt://localhost:7687")
+    /// * `uri` - The Neo4j connection URI (e.g., `bolt://localhost:7687`)
     /// * `user` - The username for authentication
     /// * `password` - The password for authentication
     ///
     /// # Errors
     ///
-    /// Returns an error if the connection to Neo4j fails
+    /// Returns an error if the connection to Neo4j fails.
     pub async fn connect(
         self,
         uri: &str,
@@ -109,7 +112,7 @@ impl InstrumentedGraphConfig {
     }
 }
 
-/// An instrumented wrapper around `neo4rs::Graph` that adds OpenTelemetry tracing
+/// An instrumented wrapper around `neo4rs::Graph` that adds OpenTelemetry tracing.
 ///
 /// This struct provides the same API as `neo4rs::Graph` but adds comprehensive
 /// OpenTelemetry instrumentation following database semantic conventions.
@@ -118,7 +121,7 @@ impl InstrumentedGraphConfig {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust,ignore
 /// let graph = InstrumentedGraph::builder()
 ///     .with_tracer(my_tracer)
 ///     .with_meter(my_meter)
@@ -134,7 +137,7 @@ pub struct InstrumentedGraph {
 }
 
 impl InstrumentedGraph {
-    /// Create a new builder for configuring an instrumented Neo4j connection
+    /// Creates a new builder for configuring an instrumented Neo4j connection.
     ///
     /// # Example
     ///
@@ -151,7 +154,7 @@ impl InstrumentedGraph {
         InstrumentedGraphBuilder::new()
     }
 
-    /// Create an instrumented graph with a telemetry configuration
+    /// Creates an instrumented graph with a telemetry configuration.
     ///
     /// This is used internally by the builder and other convenience methods.
     ///
@@ -185,7 +188,7 @@ impl InstrumentedGraph {
         })
     }
 
-    /// Helper to convert instrumentation errors to neo4rs errors for API compatibility
+    /// Helper to convert instrumentation errors to neo4rs errors for API compatibility.
     fn convert_instrumentation_error(e: InstrumentationError) -> neo4rs::Error {
         if let InstrumentationError::Neo4jError(neo4j_err) = e {
             neo4j_err
@@ -201,7 +204,7 @@ impl InstrumentedGraph {
         }
     }
 
-    /// Execute a query and return results as a stream
+    /// Executes a query and returns results as a stream.
     ///
     /// This method instruments the query execution with OpenTelemetry spans
     /// following database semantic conventions.
@@ -251,7 +254,7 @@ impl InstrumentedGraph {
                 Ok(_) => span.set_status(Status::Ok),
                 Err(e) => {
                     span.record_error(e);
-                    span.set_status(Status::error(format!("Query execution failed: {}", e)));
+                    span.set_status(Status::error(format!("Query execution failed: {e}")));
                 }
             }
             span.end();
@@ -260,7 +263,7 @@ impl InstrumentedGraph {
         result
     }
 
-    /// Run a query without returning results
+    /// Runs a query without returning results.
     ///
     /// This method instruments the query execution with OpenTelemetry spans.
     ///
@@ -306,10 +309,10 @@ impl InstrumentedGraph {
         // Set span status based on result
         if let Some(ref mut span) = span {
             match &result {
-                Ok(_) => span.set_status(Status::Ok),
+                Ok(()) => span.set_status(Status::Ok),
                 Err(e) => {
                     span.record_error(e);
-                    span.set_status(Status::error(format!("Query run failed: {}", e)));
+                    span.set_status(Status::error(format!("Query run failed: {e}")));
                 }
             }
             span.end();
@@ -318,13 +321,17 @@ impl InstrumentedGraph {
         result
     }
 
-    /// Execute a query on a specific database
+    /// Executes a query on a specific database.
     ///
     /// # Errors
     ///
     /// Returns a [`neo4rs::Error`] if the query execution fails, if the specified
     /// database does not exist, or if there are network connectivity issues.
-    pub async fn execute_on(&self, database: &str, query: Query) -> Result<impl Send, neo4rs::Error> {
+    pub async fn execute_on(
+        &self,
+        database: &str,
+        query: Query,
+    ) -> Result<impl Send, neo4rs::Error> {
         debug!("executing neo4j query on database {}", database);
 
         // Create span if tracer is available
@@ -333,9 +340,9 @@ impl InstrumentedGraph {
                 .span_builder("neo4j.execute_on")
                 .with_kind(SpanKind::Client)
                 .with_attributes(vec![
-                    KeyValue::new(DB_SYSTEM, "neo4j"),
+                    KeyValue::new(DB_SYSTEM_NAME, "neo4j"),
                     KeyValue::new(DB_NAMESPACE, database.to_string()),
-                    KeyValue::new(DB_CONNECTION_STRING, self.info.connection_string.clone()),
+                    KeyValue::new(SERVER_ADDRESS, self.info.connection_string.clone()),
                     KeyValue::new("db.version", self.info.version.clone()),
                     KeyValue::new(DB_OPERATION_NAME, "execute_on"),
                 ])
@@ -350,12 +357,7 @@ impl InstrumentedGraph {
         // Record metrics if enabled
         if let Some(metrics) = &self.metrics {
             if let Some(timer) = timer {
-                let _ = timer.record_query(
-                    metrics,
-                    result.is_ok(),
-                    Some("execute_on"),
-                    database,
-                );
+                let _ = timer.record_query(metrics, result.is_ok(), Some("execute_on"), database);
             }
         }
 
@@ -365,7 +367,9 @@ impl InstrumentedGraph {
                 Ok(_) => span.set_status(Status::Ok),
                 Err(e) => {
                     span.record_error(e);
-                    span.set_status(Status::error(format!("Query execution on {} failed: {}", database, e)));
+                    span.set_status(Status::error(format!(
+                        "Query execution on {database} failed: {e}"
+                    )));
                 }
             }
             span.end();
@@ -374,7 +378,7 @@ impl InstrumentedGraph {
         result
     }
 
-    /// Run a query on a specific database without returning results
+    /// Runs a query on a specific database without returning results.
     ///
     /// # Errors
     ///
@@ -392,9 +396,9 @@ impl InstrumentedGraph {
                 .span_builder("neo4j.run_on")
                 .with_kind(SpanKind::Client)
                 .with_attributes(vec![
-                    KeyValue::new(DB_SYSTEM, "neo4j"),
+                    KeyValue::new(DB_SYSTEM_NAME, "neo4j"),
                     KeyValue::new(DB_NAMESPACE, database.to_string()),
-                    KeyValue::new(DB_CONNECTION_STRING, self.info.connection_string.clone()),
+                    KeyValue::new(SERVER_ADDRESS, self.info.connection_string.clone()),
                     KeyValue::new("db.version", self.info.version.clone()),
                     KeyValue::new(DB_OPERATION_NAME, "run_on"),
                 ])
@@ -409,22 +413,19 @@ impl InstrumentedGraph {
         // Record metrics if enabled
         if let Some(metrics) = &self.metrics {
             if let Some(timer) = timer {
-                let _ = timer.record_query(
-                    metrics,
-                    result.is_ok(),
-                    Some("run_on"),
-                    database,
-                );
+                let _ = timer.record_query(metrics, result.is_ok(), Some("run_on"), database);
             }
         }
 
         // Set span status based on result
         if let Some(ref mut span) = span {
             match &result {
-                Ok(_) => span.set_status(Status::Ok),
+                Ok(()) => span.set_status(Status::Ok),
                 Err(e) => {
                     span.record_error(e);
-                    span.set_status(Status::error(format!("Query run on {} failed: {}", database, e)));
+                    span.set_status(Status::error(format!(
+                        "Query run on {database} failed: {e}"
+                    )));
                 }
             }
             span.end();
@@ -433,7 +434,7 @@ impl InstrumentedGraph {
         result
     }
 
-    /// Start a new transaction
+    /// Starts a new transaction.
     ///
     /// This method creates an instrumented transaction wrapper.
     ///
@@ -472,119 +473,70 @@ impl InstrumentedGraph {
                 Ok(_) => span.set_status(Status::Ok),
                 Err(e) => {
                     span.record_error(e);
-                    span.set_status(Status::error(format!("Failed to start transaction: {}", e)));
+                    span.set_status(Status::error(format!("Failed to start transaction: {e}")));
                 }
             }
             span.end();
         }
 
         result.map(|txn| {
-            crate::txn::InstrumentedTxn::new(
-                txn,
-                self.info.clone(),
-                self.metrics.clone(),
-            )
+            crate::txn::InstrumentedTxn::new(txn, self.info.clone(), self.metrics.clone())
         })
     }
 
-    ///
-    /// Returns a reference to the Neo4j connection information associated with the current object.
+    /// Returns a reference to the Neo4j connection information.
     ///
     /// # Returns
     ///
-    /// A reference to a `Neo4jConnectionInfo` instance containing details about the Neo4j connection.
-    ///
-    /// # Attributes
-    ///
-    /// * `#[must_use]` - Indicates that the return value of this function should be used by the caller;
-    ///   ignoring the result may result in undesirable behavior or missed information.
+    /// A reference to a [`Neo4jConnectionInfo`] instance containing details about the Neo4j connection.
     ///
     /// # Example
     ///
     /// ```rust,ignore
-    /// let connection_info = instance.connection_info();
-    /// println!("Connection Info: {:?}", connection_info);
+    /// let connection_info = graph.connection_info();
+    /// println!("Database: {}", connection_info.database_name);
+    /// println!("Version: {}", connection_info.version);
     /// ```
-    ///
     #[must_use]
     pub fn connection_info(&self) -> &Neo4jConnectionInfo {
         &self.info
     }
 
-    /// Retrieves a reference to the inner `Graph` instance.
+    /// Returns a reference to the inner `Graph` instance.
     ///
-    /// # Returns
-    ///
-    /// A reference to the `Graph` stored within the current object.
-    ///
-    /// # Attributes
-    ///
-    /// * `#[must_use]` - Indicates that the return value of this function should not be ignored.
+    /// This provides direct access to the underlying `neo4rs::Graph` for cases
+    /// where instrumentation is not needed or for accessing methods not yet
+    /// wrapped by this instrumented version.
     ///
     /// # Example
     ///
     /// ```rust,ignore
-    /// let my_object = MyStruct::new();
-    /// let graph = my_object.inner();
-    /// // Use `graph` for further operations
+    /// let inner_graph = instrumented_graph.inner();
+    /// // Use inner_graph for direct neo4rs operations
     /// ```
     #[must_use]
     pub fn inner(&self) -> &Graph {
         &self.inner
     }
+}
 
-    /// Retrieves connection information for a Neo4j database.
+impl InstrumentedGraph {
+    /// Sanitizes a connection URI to remove sensitive information like passwords.
     ///
-    /// This asynchronous function fetches relevant information about the Neo4j database,
-    /// including its version, current database name, server address, and server port.
-    /// If certain details cannot be retrieved, it falls back to default values or environment
-    /// variables with reasonable logging for unexpected situations.
+    /// # Arguments
     ///
-    /// # Parameters
-    /// - `graph`: A reference to a `Graph` instance used to interact with the Neo4j database.
+    /// * `uri` - The connection URI to sanitize
     ///
     /// # Returns
-    /// - An `InstrumentationResult` containing a `Neo4jConnectionInfo` struct populated with the retrieved details:
-    ///   - `database_name`: The name of the current Neo4j database (defaults to "neo4j" if retrieval fails).
-    ///   - `version`: The Neo4j version (defaults to "unknown" if retrieval fails).
-    ///   - `connection_string`: The sanitized connection URI with password masked.
     ///
-    /// # Behavior
-    /// - Queries the Neo4j database using system commands to fetch the database version (`dbms.components`) and
-    ///   database name (`db.info`).
-    /// - Defaults are applied in the following cases:
-    ///   - If the Neo4j version query fails, "unknown" is used as the version.
-    ///   - If the database name query fails, "neo4j" is used as the database name.
-    /// - Logs warnings when queries fail.
+    /// A sanitized connection string with the password replaced by `****`.
     ///
     /// # Example
+    ///
     /// ```rust,ignore
-    /// let connection_info = get_connection_info(&graph, "bolt://localhost:7687").await?;
-    /// println!(
-    ///     "Connected to Neo4j database: {}, version: {} at {}",
-    ///     connection_info.database_name,
-    ///     connection_info.version,
-    ///     connection_info.connection_string
-    /// );
+    /// let sanitized = sanitize_connection_string("bolt://user:password@localhost:7687");
+    /// assert_eq!(sanitized, "bolt://user:****@localhost:7687");
     /// ```
-    ///
-    /// # Errors
-    /// Returns an error wrapped in `InstrumentationResult` if any issues arise during Neo4j interaction.
-    ///
-    /// # Logging
-    /// - Logs warnings for:
-    ///   - Failure to retrieve the database version or name.
-    ///
-    /// # Notes
-    /// - The connection string is sanitized to remove password information for security.
-    ///
-    /// # Dependencies
-    /// - `neo4rs`: Used for running Cypher queries to fetch database information.
-    ///
-    /// # See Also
-    /// - [`Neo4jConnectionInfo`](struct.Neo4jConnectionInfo.html): The structure that holds connection info details.
-    /// - [`InstrumentationResult`](enum.InstrumentationResult.html): The result type returned by this function.
-    /// Sanitize a connection URI to remove sensitive information like passwords
     fn sanitize_connection_string(uri: &str) -> String {
         // Remove password from connection string for tracing
         // Format is usually bolt://user:password@host:port or bolt://host:port
@@ -595,7 +547,7 @@ impl InstrumentedGraph {
                 // Check if there's a username (has colon before @)
                 if let Some(colon_pos) = uri[proto_end + 3..at_pos].find(':') {
                     let username = &uri[proto_end + 3..proto_end + 3 + colon_pos];
-                    format!("{}{}:****{}", protocol, username, after_at)
+                    format!("{protocol}{username}:****{after_at}")
                 } else {
                     // No password, return as-is
                     uri.to_string()
@@ -608,6 +560,53 @@ impl InstrumentedGraph {
         }
     }
 
+    /// Retrieves connection information from a Neo4j database.
+    ///
+    /// This asynchronous function fetches relevant information about the Neo4j database,
+    /// including its version, current database name, and sanitized connection string.
+    /// If certain details cannot be retrieved, it falls back to default values with
+    /// appropriate warning logs.
+    ///
+    /// # Arguments
+    ///
+    /// * `graph` - A reference to a `Graph` instance used to interact with the Neo4j database
+    /// * `uri` - The connection URI string for sanitization and storage
+    ///
+    /// # Returns
+    ///
+    /// An `InstrumentationResult` containing a `Neo4jConnectionInfo` struct populated with:
+    ///
+    /// - `database_name` - The name of the current Neo4j database (defaults to "neo4j" if retrieval fails)
+    /// - `version` - The Neo4j version (defaults to "unknown" if retrieval fails)
+    /// - `connection_string` - The sanitized connection URI with password masked
+    ///
+    /// # Behavior
+    ///
+    /// The function performs the following steps:
+    ///
+    /// 1. Queries the Neo4j database using `dbms.components()` to fetch the database version
+    /// 2. Queries using `db.info()` to fetch the current database name
+    /// 3. Sanitizes the connection string to remove password information
+    /// 4. Returns the collected information in a `Neo4jConnectionInfo` struct
+    ///
+    /// If any query fails, appropriate defaults are used and warnings are logged.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error wrapped in `InstrumentationResult` if critical issues arise
+    /// during Neo4j interaction.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let connection_info = get_connection_info(&graph, "bolt://localhost:7687").await?;
+    /// println!(
+    ///     "Connected to Neo4j database: {}, version: {} at {}",
+    ///     connection_info.database_name,
+    ///     connection_info.version,
+    ///     connection_info.connection_string
+    /// );
+    /// ```
     async fn get_connection_info(
         graph: &Graph,
         uri: &str,

@@ -18,19 +18,15 @@ implements the same interface as the `neo4rs::Graph`. As this struct provides th
 API as the underlying `neo4rs` implementation, establishing a connection is done in the
 same way as the original crate.
 
-```
+```no_run
 use otel_instrumentation_neo4jrs::InstrumentedGraph;
-use neo4rs::ConfigBuilder;
 
 # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-let config = ConfigBuilder::default()
-    .uri("bolt://localhost:7687")
-    .user("neo4j")
-    .password("password")
+// Create instrumented connection using builder
+let graph = InstrumentedGraph::builder()
     .build()
-    .unwrap();
-
-let graph = InstrumentedGraph::connect(config).await?;
+    .connect("bolt://localhost:7687", "neo4j", "password")
+    .await?;
 # Ok(())
 # }
 ```

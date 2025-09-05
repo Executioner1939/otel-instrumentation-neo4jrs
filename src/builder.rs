@@ -42,7 +42,7 @@ impl InstrumentedGraphBuilder {
     ///
     /// # Arguments
     ///
-    /// * `tracer` - The BoxedTracer instance to use for creating spans
+    /// * `tracer` - The `BoxedTracer` instance to use for creating spans
     #[must_use]
     pub fn with_tracer(mut self, tracer: BoxedTracer) -> Self {
         self.tracer = Some(tracer);

@@ -14,7 +14,7 @@ use tracing::{debug, instrument};
 ///
 /// * `inner` - The underlying Neo4j transaction object (`Txn`) that this structure wraps around.
 /// * `info` - The connection information (`Neo4jConnectionInfo`) associated with this transaction.
-/// * `metrics` - An optional shared reference (`Arc`) to the Neo4j metrics collector (`Neo4jMetrics`) 
+/// * `metrics` - An optional shared reference (`Arc`) to the Neo4j metrics collector (`Neo4jMetrics`)
 ///   for recording runtime monitoring and instrumentation data. If `None`, metrics collection is not performed.
 /// * `transaction_timer` - An optional timer (`OperationTimer`) to measure the duration of this transaction
 ///   for performance profiling. If `None`, timing data is not collected.
