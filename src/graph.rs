@@ -226,11 +226,11 @@ impl InstrumentedGraph {
                 KeyValue::new(SERVER_ADDRESS, self.info.server_address.clone()),
                 KeyValue::new(DB_OPERATION_NAME, "execute"),
             ];
-            
+
             if let Some(port) = self.info.server_port {
                 attributes.push(KeyValue::new(SERVER_PORT, port));
             }
-            
+
             tracer
                 .span_builder("neo4j.query")
                 .with_kind(SpanKind::Client)
@@ -289,11 +289,11 @@ impl InstrumentedGraph {
                 KeyValue::new(SERVER_ADDRESS, self.info.server_address.clone()),
                 KeyValue::new(DB_OPERATION_NAME, "run"),
             ];
-            
+
             if let Some(port) = self.info.server_port {
                 attributes.push(KeyValue::new(SERVER_PORT, port));
             }
-            
+
             tracer
                 .span_builder("neo4j.run")
                 .with_kind(SpanKind::Client)
@@ -354,11 +354,11 @@ impl InstrumentedGraph {
                 KeyValue::new(SERVER_ADDRESS, self.info.server_address.clone()),
                 KeyValue::new(DB_OPERATION_NAME, "execute_on"),
             ];
-            
+
             if let Some(port) = self.info.server_port {
                 attributes.push(KeyValue::new(SERVER_PORT, port));
             }
-            
+
             tracer
                 .span_builder("neo4j.execute_on")
                 .with_kind(SpanKind::Client)
@@ -415,11 +415,11 @@ impl InstrumentedGraph {
                 KeyValue::new(SERVER_ADDRESS, self.info.server_address.clone()),
                 KeyValue::new(DB_OPERATION_NAME, "run_on"),
             ];
-            
+
             if let Some(port) = self.info.server_port {
                 attributes.push(KeyValue::new(SERVER_PORT, port));
             }
-            
+
             tracer
                 .span_builder("neo4j.run_on")
                 .with_kind(SpanKind::Client)
@@ -475,11 +475,11 @@ impl InstrumentedGraph {
                 KeyValue::new(SERVER_ADDRESS, self.info.server_address.clone()),
                 KeyValue::new(DB_OPERATION_NAME, "start_transaction"),
             ];
-            
+
             if let Some(port) = self.info.server_port {
                 attributes.push(KeyValue::new(SERVER_PORT, port));
             }
-            
+
             tracer
                 .span_builder("neo4j.transaction.start")
                 .with_kind(SpanKind::Client)
@@ -568,24 +568,24 @@ impl InstrumentedGraph {
     fn parse_connection_uri(uri: &str) -> (String, Option<i64>) {
         // Parse the URI to extract server address and port
         // Format is usually bolt://user:password@host:port or bolt://host:port
-        
+
         let mut clean_uri = uri.to_string();
-        
+
         // Remove the protocol prefix
         if let Some(proto_end) = clean_uri.find("://") {
             clean_uri = clean_uri[proto_end + 3..].to_string();
         }
-        
+
         // Remove credentials if present (user:pass@)
         if let Some(at_pos) = clean_uri.find('@') {
             clean_uri = clean_uri[at_pos + 1..].to_string();
         }
-        
+
         // Now we should have host:port or just host
         if let Some(colon_pos) = clean_uri.rfind(':') {
             let host = clean_uri[..colon_pos].to_string();
             let port_str = &clean_uri[colon_pos + 1..];
-            
+
             // Try to parse the port
             let port = port_str.parse::<i64>().ok();
             (host, port)
@@ -717,7 +717,7 @@ impl InstrumentedGraph {
 
         // Sanitize the connection string to remove sensitive information
         let connection_string = Self::sanitize_connection_string(uri);
-        
+
         // Parse the connection URI to extract server address and port
         let (server_address, server_port) = Self::parse_connection_uri(uri);
 
@@ -795,7 +795,8 @@ mod tests {
         assert_eq!(port, Some(7687));
 
         // Test with credentials
-        let (addr, port) = InstrumentedGraph::parse_connection_uri("bolt://user:pass@server.com:7687");
+        let (addr, port) =
+            InstrumentedGraph::parse_connection_uri("bolt://user:pass@server.com:7687");
         assert_eq!(addr, "server.com");
         assert_eq!(port, Some(7687));
 
