@@ -61,7 +61,7 @@ use opentelemetry::metrics::Meter;
 use opentelemetry::trace::{Span, SpanKind, Status, Tracer};
 use opentelemetry::KeyValue;
 use opentelemetry_semantic_conventions::attribute::{
-    DB_NAMESPACE, DB_OPERATION_NAME, DB_SYSTEM_NAME, SERVER_ADDRESS,
+    DB_NAMESPACE, DB_OPERATION_NAME, DB_SYSTEM_NAME, SERVER_ADDRESS, SERVER_PORT,
 };
 use std::ops::Deref;
 use std::sync::Arc;
@@ -73,6 +73,8 @@ pub struct Neo4jConnectionInfo {
     pub database_name: String,
     pub version: String,
     pub connection_string: String, // Store sanitized connection URI for tracing
+    pub server_address: String,    // Parsed server address (hostname/IP)
+    pub server_port: Option<i64>,  // Parsed server port (if present)
 }
 
 /// Configuration for creating an instrumented Neo4j connection.
@@ -218,16 +220,21 @@ impl InstrumentedGraph {
 
         // Create span if tracer is available
         let mut span = self.tracer.as_ref().map(|tracer| {
+            let mut attributes = vec![
+                KeyValue::new(DB_SYSTEM_NAME, "neo4j"),
+                KeyValue::new(DB_NAMESPACE, self.info.database_name.clone()),
+                KeyValue::new(SERVER_ADDRESS, self.info.server_address.clone()),
+                KeyValue::new(DB_OPERATION_NAME, "execute"),
+            ];
+            
+            if let Some(port) = self.info.server_port {
+                attributes.push(KeyValue::new(SERVER_PORT, port));
+            }
+            
             tracer
                 .span_builder("neo4j.query")
                 .with_kind(SpanKind::Client)
-                .with_attributes(vec![
-                    KeyValue::new(DB_SYSTEM_NAME, "neo4j"),
-                    KeyValue::new(DB_NAMESPACE, self.info.database_name.clone()),
-                    KeyValue::new(SERVER_ADDRESS, self.info.connection_string.clone()),
-                    KeyValue::new("db.version", self.info.version.clone()),
-                    KeyValue::new(DB_OPERATION_NAME, "execute"),
-                ])
+                .with_attributes(attributes)
                 .start(tracer)
         });
 
@@ -276,16 +283,21 @@ impl InstrumentedGraph {
 
         // Create span if tracer is available
         let mut span = self.tracer.as_ref().map(|tracer| {
+            let mut attributes = vec![
+                KeyValue::new(DB_SYSTEM_NAME, "neo4j"),
+                KeyValue::new(DB_NAMESPACE, self.info.database_name.clone()),
+                KeyValue::new(SERVER_ADDRESS, self.info.server_address.clone()),
+                KeyValue::new(DB_OPERATION_NAME, "run"),
+            ];
+            
+            if let Some(port) = self.info.server_port {
+                attributes.push(KeyValue::new(SERVER_PORT, port));
+            }
+            
             tracer
                 .span_builder("neo4j.run")
                 .with_kind(SpanKind::Client)
-                .with_attributes(vec![
-                    KeyValue::new(DB_SYSTEM_NAME, "neo4j"),
-                    KeyValue::new(DB_NAMESPACE, self.info.database_name.clone()),
-                    KeyValue::new(SERVER_ADDRESS, self.info.connection_string.clone()),
-                    KeyValue::new("db.version", self.info.version.clone()),
-                    KeyValue::new(DB_OPERATION_NAME, "run"),
-                ])
+                .with_attributes(attributes)
                 .start(tracer)
         });
 
@@ -336,16 +348,21 @@ impl InstrumentedGraph {
 
         // Create span if tracer is available
         let mut span = self.tracer.as_ref().map(|tracer| {
+            let mut attributes = vec![
+                KeyValue::new(DB_SYSTEM_NAME, "neo4j"),
+                KeyValue::new(DB_NAMESPACE, database.to_string()),
+                KeyValue::new(SERVER_ADDRESS, self.info.server_address.clone()),
+                KeyValue::new(DB_OPERATION_NAME, "execute_on"),
+            ];
+            
+            if let Some(port) = self.info.server_port {
+                attributes.push(KeyValue::new(SERVER_PORT, port));
+            }
+            
             tracer
                 .span_builder("neo4j.execute_on")
                 .with_kind(SpanKind::Client)
-                .with_attributes(vec![
-                    KeyValue::new(DB_SYSTEM_NAME, "neo4j"),
-                    KeyValue::new(DB_NAMESPACE, database.to_string()),
-                    KeyValue::new(SERVER_ADDRESS, self.info.connection_string.clone()),
-                    KeyValue::new("db.version", self.info.version.clone()),
-                    KeyValue::new(DB_OPERATION_NAME, "execute_on"),
-                ])
+                .with_attributes(attributes)
                 .start(tracer)
         });
 
@@ -392,16 +409,21 @@ impl InstrumentedGraph {
 
         // Create span if tracer is available
         let mut span = self.tracer.as_ref().map(|tracer| {
+            let mut attributes = vec![
+                KeyValue::new(DB_SYSTEM_NAME, "neo4j"),
+                KeyValue::new(DB_NAMESPACE, database.to_string()),
+                KeyValue::new(SERVER_ADDRESS, self.info.server_address.clone()),
+                KeyValue::new(DB_OPERATION_NAME, "run_on"),
+            ];
+            
+            if let Some(port) = self.info.server_port {
+                attributes.push(KeyValue::new(SERVER_PORT, port));
+            }
+            
             tracer
                 .span_builder("neo4j.run_on")
                 .with_kind(SpanKind::Client)
-                .with_attributes(vec![
-                    KeyValue::new(DB_SYSTEM_NAME, "neo4j"),
-                    KeyValue::new(DB_NAMESPACE, database.to_string()),
-                    KeyValue::new(SERVER_ADDRESS, self.info.connection_string.clone()),
-                    KeyValue::new("db.version", self.info.version.clone()),
-                    KeyValue::new(DB_OPERATION_NAME, "run_on"),
-                ])
+                .with_attributes(attributes)
                 .start(tracer)
         });
 
@@ -447,16 +469,21 @@ impl InstrumentedGraph {
 
         // Create span if tracer is available
         let mut span = self.tracer.as_ref().map(|tracer| {
+            let mut attributes = vec![
+                KeyValue::new(DB_SYSTEM_NAME, "neo4j"),
+                KeyValue::new(DB_NAMESPACE, self.info.database_name.clone()),
+                KeyValue::new(SERVER_ADDRESS, self.info.server_address.clone()),
+                KeyValue::new(DB_OPERATION_NAME, "start_transaction"),
+            ];
+            
+            if let Some(port) = self.info.server_port {
+                attributes.push(KeyValue::new(SERVER_PORT, port));
+            }
+            
             tracer
                 .span_builder("neo4j.transaction.start")
                 .with_kind(SpanKind::Client)
-                .with_attributes(vec![
-                    KeyValue::new(DB_SYSTEM_NAME, "neo4j"),
-                    KeyValue::new(DB_NAMESPACE, self.info.database_name.clone()),
-                    KeyValue::new(SERVER_ADDRESS, self.info.connection_string.clone()),
-                    KeyValue::new("db.version", self.info.version.clone()),
-                    KeyValue::new(DB_OPERATION_NAME, "start_transaction"),
-                ])
+                .with_attributes(attributes)
                 .start(tracer)
         });
 
@@ -521,6 +548,53 @@ impl InstrumentedGraph {
 }
 
 impl InstrumentedGraph {
+    /// Parses a connection URI to extract server address and port.
+    ///
+    /// # Arguments
+    ///
+    /// * `uri` - The connection URI to parse
+    ///
+    /// # Returns
+    ///
+    /// A tuple of (`server_address`, `optional_port`).
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let (address, port) = parse_connection_uri("bolt://localhost:7687");
+    /// assert_eq!(address, "localhost");
+    /// assert_eq!(port, Some(7687));
+    /// ```
+    fn parse_connection_uri(uri: &str) -> (String, Option<i64>) {
+        // Parse the URI to extract server address and port
+        // Format is usually bolt://user:password@host:port or bolt://host:port
+        
+        let mut clean_uri = uri.to_string();
+        
+        // Remove the protocol prefix
+        if let Some(proto_end) = clean_uri.find("://") {
+            clean_uri = clean_uri[proto_end + 3..].to_string();
+        }
+        
+        // Remove credentials if present (user:pass@)
+        if let Some(at_pos) = clean_uri.find('@') {
+            clean_uri = clean_uri[at_pos + 1..].to_string();
+        }
+        
+        // Now we should have host:port or just host
+        if let Some(colon_pos) = clean_uri.rfind(':') {
+            let host = clean_uri[..colon_pos].to_string();
+            let port_str = &clean_uri[colon_pos + 1..];
+            
+            // Try to parse the port
+            let port = port_str.parse::<i64>().ok();
+            (host, port)
+        } else {
+            // No port specified
+            (clean_uri, None)
+        }
+    }
+
     /// Sanitizes a connection URI to remove sensitive information like passwords.
     ///
     /// # Arguments
@@ -643,11 +717,16 @@ impl InstrumentedGraph {
 
         // Sanitize the connection string to remove sensitive information
         let connection_string = Self::sanitize_connection_string(uri);
+        
+        // Parse the connection URI to extract server address and port
+        let (server_address, server_port) = Self::parse_connection_uri(uri);
 
         Ok(Neo4jConnectionInfo {
             database_name,
             version,
             connection_string,
+            server_address,
+            server_port,
         })
     }
 }
@@ -676,11 +755,15 @@ mod tests {
             database_name: "test".to_string(),
             version: "5.0.0".to_string(),
             connection_string: "bolt://localhost:7687".to_string(),
+            server_address: "localhost".to_string(),
+            server_port: Some(7687),
         };
 
         assert_eq!(info.database_name, "test");
         assert_eq!(info.version, "5.0.0");
         assert_eq!(info.connection_string, "bolt://localhost:7687");
+        assert_eq!(info.server_address, "localhost");
+        assert_eq!(info.server_port, Some(7687));
     }
 
     #[test]
@@ -702,5 +785,38 @@ mod tests {
             InstrumentedGraph::sanitize_connection_string("neo4j+s://user:secret@host.com:7687"),
             "neo4j+s://user:****@host.com:7687"
         );
+    }
+
+    #[test]
+    fn test_parse_connection_uri() {
+        // Test basic bolt URI
+        let (addr, port) = InstrumentedGraph::parse_connection_uri("bolt://localhost:7687");
+        assert_eq!(addr, "localhost");
+        assert_eq!(port, Some(7687));
+
+        // Test with credentials
+        let (addr, port) = InstrumentedGraph::parse_connection_uri("bolt://user:pass@server.com:7687");
+        assert_eq!(addr, "server.com");
+        assert_eq!(port, Some(7687));
+
+        // Test neo4j+s protocol
+        let (addr, port) = InstrumentedGraph::parse_connection_uri("neo4j+s://db.example.com:7473");
+        assert_eq!(addr, "db.example.com");
+        assert_eq!(port, Some(7473));
+
+        // Test without port
+        let (addr, port) = InstrumentedGraph::parse_connection_uri("bolt://localhost");
+        assert_eq!(addr, "localhost");
+        assert_eq!(port, None);
+
+        // Test with IP address
+        let (addr, port) = InstrumentedGraph::parse_connection_uri("bolt://192.168.1.1:7687");
+        assert_eq!(addr, "192.168.1.1");
+        assert_eq!(port, Some(7687));
+
+        // Test with IPv6 address (brackets should be preserved)
+        let (addr, port) = InstrumentedGraph::parse_connection_uri("bolt://[::1]:7687");
+        assert_eq!(addr, "[::1]");
+        assert_eq!(port, Some(7687));
     }
 }

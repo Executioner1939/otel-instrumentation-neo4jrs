@@ -57,10 +57,11 @@ impl InstrumentedTxn {
     /// context or if there are network connectivity issues.
     #[instrument(
         fields(
-            db.system="neo4j",
-            db.name=%self.info.database_name,
-            db.connection_string=%self.info.connection_string,
-            db.version=%self.info.version,
+            db.system.name="neo4j",
+            db.namespace=%self.info.database_name,
+            server.address=%self.info.server_address,
+            server.port=?self.info.server_port,
+            db.operation.name="execute",
             otel.kind="client",
         ),
         skip(self, query),
@@ -79,10 +80,11 @@ impl InstrumentedTxn {
     /// context or if there are network connectivity issues.
     #[instrument(
         fields(
-            db.system="neo4j",
-            db.name=%self.info.database_name,
-            db.connection_string=%self.info.connection_string,
-            db.version=%self.info.version,
+            db.system.name="neo4j",
+            db.namespace=%self.info.database_name,
+            server.address=%self.info.server_address,
+            server.port=?self.info.server_port,
+            db.operation.name="run",
             otel.kind="client",
         ),
         skip(self, query),
@@ -101,12 +103,13 @@ impl InstrumentedTxn {
     /// within the transaction context or if there are network connectivity issues.
     #[instrument(
         fields(
-            db.system="neo4j",
-            db.name=%self.info.database_name,
-            db.connection_string=%self.info.connection_string,
-            db.version=%self.info.version,
-            otel.kind="client",
+            db.system.name="neo4j",
+            db.namespace=%self.info.database_name,
+            server.address=%self.info.server_address,
+            server.port=?self.info.server_port,
+            db.operation.name="run_queries",
             db.operation.batch.size=queries.len(),
+            otel.kind="client",
         ),
         skip(self, queries),
         err,
@@ -124,10 +127,11 @@ impl InstrumentedTxn {
     /// constraint violations, network issues, or other database-related errors.
     #[instrument(
         fields(
-            db.system="neo4j",
-            db.name=%self.info.database_name,
-            db.connection_string=%self.info.connection_string,
-            db.version=%self.info.version,
+            db.system.name="neo4j",
+            db.namespace=%self.info.database_name,
+            server.address=%self.info.server_address,
+            server.port=?self.info.server_port,
+            db.operation.name="commit",
             otel.kind="client",
         ),
         skip(self),
@@ -157,10 +161,11 @@ impl InstrumentedTxn {
     /// network connectivity issues or other database-related errors.
     #[instrument(
         fields(
-            db.system="neo4j",
-            db.name=%self.info.database_name,
-            db.connection_string=%self.info.connection_string,
-            db.version=%self.info.version,
+            db.system.name="neo4j",
+            db.namespace=%self.info.database_name,
+            server.address=%self.info.server_address,
+            server.port=?self.info.server_port,
+            db.operation.name="rollback",
             otel.kind="client",
         ),
         skip(self),
@@ -210,10 +215,14 @@ mod tests {
             database_name: "test".to_string(),
             connection_string: "bolt://localhost:7687".to_string(),
             version: "5.0.0".to_string(),
+            server_address: "localhost".to_string(),
+            server_port: Some(7687),
         };
 
         assert_eq!(info.database_name, "test");
         assert_eq!(info.connection_string, "bolt://localhost:7687");
         assert_eq!(info.version, "5.0.0");
+        assert_eq!(info.server_address, "localhost");
+        assert_eq!(info.server_port, Some(7687));
     }
 }
