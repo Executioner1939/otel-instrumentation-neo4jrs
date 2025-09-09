@@ -73,14 +73,8 @@ async fn setup_test_graph(
     let user = get_neo4j_user();
     let password = get_neo4j_password();
 
-    // Get the tracer from the test harness
-    let tracer = harness.tracer("test");
-
-    let graph = InstrumentedGraph::builder()
-        .with_tracer(tracer)
-        .build()
-        .connect(&uri, &user, &password)
-        .await?;
+    // Create instrumented graph using the simplified API
+    let graph = InstrumentedGraph::connect(&uri, &user, &password).await?;
 
     // Clean up any existing test data
     graph

@@ -1,145 +1,65 @@
 /*!
-`otel-instrumentation-neo4jrs` provides connection structures that can be used as drop in
-replacements for neo4rs connections with extra OpenTelemetry tracing and logging.
+`otel-instrumentation-neo4jrs` provides a simple wrapper around neo4rs connections that adds
+OpenTelemetry tracing instrumentation using the `tracing` crate's `#[instrument]` macro.
 
 # Usage
 
-## Limitations
+This crate provides a thin wrapper that follows the standard Rust pattern of wrapping
+a type and delegating methods while adding instrumentation.
 
-Due to neo4rs API limitations, this instrumentation provides basic telemetry without query text extraction:
-- Query text is not available as neo4rs Query type doesn't expose it
-- Operation names cannot be extracted from queries
-- Stream instrumentation is limited due to transaction handle requirements
+# Example
 
-# Establishing a connection
-
-`otel-instrumentation-neo4jrs` provides an instrumented Graph wrapper that
-implements the same interface as the `neo4rs::Graph`. As this struct provides the same
-API as the underlying `neo4rs` implementation, establishing a connection is done in the
-same way as the original crate.
-
-```no_run
+```rust,no_run
 use otel_instrumentation_neo4jrs::InstrumentedGraph;
+use neo4rs::query;
 
-# async fn example() -> Result<(), Box<dyn std::error::Error>> {
-// Create instrumented connection using builder
-let graph = InstrumentedGraph::builder()
-    .build()
-    .connect("bolt://localhost:7687", "neo4j", "password")
-    .await?;
-# Ok(())
-# }
-```
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize tracing (you need to set up your tracing subscriber)
+    tracing_subscriber::fmt::init();
 
-This connection can then be used with neo4rs methods such as
-`execute`, `run`, and `start_txn`.
+    // Connect using the instrumented wrapper
+    let graph = InstrumentedGraph::connect(
+        "bolt://localhost:7687",
+        "neo4j",
+        "password"
+    ).await?;
 
-# Code reuse
+    // Or wrap an existing Graph
+    // let graph = neo4rs::Graph::new(...).await?;
+    // let graph = InstrumentedGraph::new(graph);
 
-In some applications it may be desirable to be able to use both instrumented and
-uninstrumented connections. For example, in the tests for a library. To achieve this
-you can use traits or generic parameters in your functions.
+    // Use it exactly like neo4rs::Graph - all methods are instrumented
+    graph.run(query("CREATE (n:Person {name: 'Alice'})")).await?;
 
-```
-async fn use_connection<G>(graph: &G) -> Result<(), Box<dyn std::error::Error>>
-where
-    G: AsRef<neo4rs::Graph>,
-{
-    // Your graph operations here
+    // Transactions are also instrumented
+    let mut txn = graph.start_txn().await?;
+    txn.run(query("CREATE (n:Order {id: 1})")).await?;
+    txn.commit().await?;
+
     Ok(())
 }
 ```
 
-This function will accept both `neo4rs::Graph` and `InstrumentedGraph`.
+# Features
 
-# OpenTelemetry Semantic Conventions
+- **Simple wrapper pattern** - Just wraps `neo4rs::Graph` and adds tracing
+- **Drop-in replacement** - Implements `Deref` and `AsRef<Graph>` for compatibility
+- **Automatic instrumentation** - All methods use `#[instrument]` with OpenTelemetry semantic conventions
+- **Zero overhead when disabled** - Tracing macros compile to no-ops when not enabled
 
-This crate follows the [OpenTelemetry semantic conventions for database operations](https://opentelemetry.io/docs/specs/semconv/database/).
+# Limitations
 
-## Span Attributes
-
-All spans include the following attributes following OpenTelemetry semantic conventions:
-
-### Required Attributes
-- `db.system`: Always set to "neo4j"
-- `otel.kind`: Set to "client"
-
-### Connection Attributes (when available)
-- `db.name`: The name of the Neo4j database
-- `server.address`: Neo4j server hostname or IP address
-- `server.port`: Neo4j server port number
-- `db.version`: Neo4j server version string
-
-### Operation Attributes (when applicable)
-- `db.operation.name`: The operation type (e.g., "MATCH", "CREATE", "MERGE")
-- `db.collection.name`: Node labels or relationship types being accessed
-- `db.query.summary`: A low-cardinality summary of the query
-
-### Unavailable Attributes (due to API limitations)
-- `db.query.text`: Not available as neo4rs doesn't expose query text
-- `db.query.parameter.<key>`: Not available as neo4rs doesn't expose query parameters
-- `db.operation.name`: Cannot be extracted from neo4rs Query type
-
-### Error Attributes (when errors occur)
-- `error.type`: The error classification
-- `db.response.status_code`: Neo4j-specific error codes when available
-
-## Span Names
-
-Due to API limitations, span names default to the function being called:
-- `execute` for query execution
-- `run` for fire-and-forget queries
-- `start_txn` for transaction creation
-- `commit` for transaction commits
-- `rollback` for transaction rollbacks
-
-## Security Considerations
-
-### Sensitive Information
-
-This instrumentation does not record query text or parameters due to neo4rs API limitations,
-which provides good security by default. Connection strings are never recorded in spans
-as they may contain passwords.
-
-### Best Practices
-
-- Connection information is gathered from Neo4j system queries, not connection strings
-- Only basic connection metadata (database name, server address, version) is recorded
-- Consider using OpenTelemetry sampling to reduce data volume in production
-
-## Notes
-
-### Async Support
-
-This instrumentation is built for async Rust and requires a tokio runtime.
-All instrumented operations return the same async types as the underlying neo4rs driver.
-
-### Performance Impact
-
-The instrumentation adds minimal overhead:
-- Span creation and attribute setting
-- Timestamp recording for operation duration
-- Connection metadata queries (cached after first retrieval)
-
-### Transaction Support
-
-Transactions are fully supported with proper span hierarchies:
-- Transaction creation creates a span
-- Operations within transactions create child spans
-- Transaction commit/rollback creates completion spans
+Due to neo4rs API limitations, query text and parameters cannot be extracted for tracing.
+Span names default to the method being called (execute, run, `start_txn`, etc.).
 
 */
 #![warn(clippy::all, clippy::pedantic)]
 
-pub mod builder;
-pub mod error;
 pub mod graph;
 pub mod metrics;
-pub mod telemetry;
 pub mod txn;
 
-pub use builder::InstrumentedGraphBuilder;
-pub use error::InstrumentationError;
-pub use graph::{InstrumentedGraph, InstrumentedGraphConfig};
+pub use graph::InstrumentedGraph;
 pub use metrics::{MetricsBuilder, Neo4jMetrics};
 pub use txn::InstrumentedTxn;
