@@ -18,7 +18,7 @@ integration = []  # Feature flag for integration tests requiring Neo4j
 full = ["metrics"]
 
 [dependencies]
-neo4rs = "0.8.0"
+neo4rs = "0.8"
 tracing = "0.1.41"
 opentelemetry = { version = "0.30.0", features = ["trace"] }
 opentelemetry-semantic-conventions = { version = "0.30.0", features = ["semconv_experimental"] }
@@ -28,7 +28,9 @@ regex = { version = "1.10", optional = true }
 [dev-dependencies]
 tokio = { version = "1.43.0", features = ["full", "test-util"] }
 opentelemetry_sdk = { version = "0.30.0", features = ["metrics", "testing", "trace"] }
-tracing-subscriber = { version = "0.3", features = ["fmt"] }
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+tracing-opentelemetry = "0.31.0"
+tracing-test = "0.2"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]

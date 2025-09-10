@@ -1,41 +1,52 @@
 #![cfg(all(test, feature = "integration"))]
 
-// Note: These integration tests must be run with --test-threads=1
-// because they share a global tracer provider. Running tests in parallel
-// can cause race conditions where spans are not properly captured.
-
 use neo4rs::Query;
 use opentelemetry::{
     global,
-    trace::{SpanKind, Status, TraceContextExt, Tracer},
+    trace::{SpanKind, Status, TraceContextExt, Tracer, TracerProvider as OtelTracerProvider},
 };
-use opentelemetry_sdk::{
-    trace::{InMemorySpanExporterBuilder, Sampler, SdkTracerProvider as TracerProvider, SpanData},
-    Resource,
+use opentelemetry_sdk::trace::{
+    InMemorySpanExporter, SdkTracerProvider as TracerProvider, SpanData,
 };
 use opentelemetry_semantic_conventions::attribute::{
     DB_NAMESPACE, DB_OPERATION_NAME, DB_QUERY_TEXT, DB_SYSTEM_NAME, SERVER_ADDRESS,
 };
 use otel_instrumentation_neo4jrs::InstrumentedGraph;
+use tracing_subscriber::prelude::*;
 
 struct TestHarness {
     provider: TracerProvider,
-    exporter: opentelemetry_sdk::trace::InMemorySpanExporter,
+    exporter: InMemorySpanExporter,
+    _guard: tracing::subscriber::DefaultGuard,
 }
 
 impl TestHarness {
     fn new() -> Self {
-        let exporter = InMemorySpanExporterBuilder::new().build();
+        // Create InMemorySpanExporter for testing
+        let exporter = InMemorySpanExporter::default();
+
+        // Build provider with simple exporter
         let provider = TracerProvider::builder()
             .with_simple_exporter(exporter.clone())
-            .with_sampler(Sampler::AlwaysOn)
-            .with_resource(Resource::builder_empty().build())
             .build();
 
-        // Set as global provider for instrumentation
+        // Create tracer from provider
+        let tracer = provider.tracer("test");
+
+        // Set as global provider for any code that uses global::tracer
         global::set_tracer_provider(provider.clone());
 
-        Self { provider, exporter }
+        // Set up tracing subscriber with OpenTelemetry layer
+        // Use set_default to scope it to this test thread
+        let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
+        let subscriber = tracing_subscriber::registry().with(telemetry);
+        let guard = tracing::subscriber::set_default(subscriber);
+
+        Self {
+            provider,
+            exporter,
+            _guard: guard,
+        }
     }
 
     fn get_spans(&self) -> Vec<SpanData> {
@@ -124,11 +135,12 @@ fn validate_db_span_attributes(span: &SpanData) {
 
     assert!(has_db_namespace, "Missing {} attribute", DB_NAMESPACE);
 
-    // Check span kind is CLIENT for database calls
+    // Check span kind - should be Client for database operations
     assert_eq!(
         span.span_kind,
         SpanKind::Client,
-        "Database spans should have CLIENT span kind"
+        "Database spans should have CLIENT span kind, got {:?}",
+        span.span_kind
     );
 }
 
@@ -285,7 +297,7 @@ async fn test_query_with_parameters() -> Result<(), Box<dyn std::error::Error>> 
 
     let query_span = spans
         .iter()
-        .find(|s| s.name.contains("query") || s.name.contains("neo4j"))
+        .find(|s| s.name.contains("query") || s.name.contains("neo4j") || s.name.contains("run"))
         .expect("Should have a query span");
 
     validate_db_span_attributes(query_span);

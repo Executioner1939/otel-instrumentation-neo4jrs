@@ -1,7 +1,9 @@
+use crate::metrics::{Neo4jMetrics, OperationTimer};
 use crate::txn::InstrumentedTxn;
 use neo4rs::{Graph, Query};
-// Note: We use the semantic convention field names as string literals in the #[instrument] macro
+use opentelemetry::metrics::Meter;
 use std::ops::Deref;
+use std::sync::Arc;
 use tracing::{debug, error, info, instrument};
 
 /// A wrapper around Graph that adds tracing instrumentation
@@ -9,6 +11,7 @@ pub struct InstrumentedGraph {
     inner: Graph,
     server_address: String,
     server_port: u16,
+    metrics: Option<Arc<Neo4jMetrics>>,
 }
 
 impl InstrumentedGraph {
@@ -21,7 +24,35 @@ impl InstrumentedGraph {
             inner: graph,
             server_address: "localhost".to_string(),
             server_port: 7687,
+            metrics: None,
         }
+    }
+
+    /// Adds metrics collection to this instrumented graph
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use neo4rs::Graph;
+    /// # use otel_instrumentation_neo4jrs::InstrumentedGraph;
+    /// # use opentelemetry::metrics::Meter;
+    /// # async fn example(meter: &Meter) -> Result<(), Box<dyn std::error::Error>> {
+    /// let graph = InstrumentedGraph::connect(
+    ///     "bolt://localhost:7687",
+    ///     "neo4j",
+    ///     "password"
+    /// )
+    /// .await?
+    /// .with_metrics(meter);
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn with_metrics(mut self, meter: &Meter) -> Self {
+        let metrics = Arc::new(Neo4jMetrics::new(meter));
+        metrics.increment_connections();
+        self.metrics = Some(metrics);
+        self
     }
 
     /// Parses a Neo4j connection URI to extract host and port
@@ -66,6 +97,7 @@ impl InstrumentedGraph {
     #[instrument(
         skip(password),
         fields(
+            otel.kind = "CLIENT",
             db.system.name = "neo4j",
             server.address = ?0,  // We'll update this after parsing
             server.port = ?0,     // We'll update this after parsing
@@ -90,6 +122,7 @@ impl InstrumentedGraph {
                     inner: graph,
                     server_address,
                     server_port,
+                    metrics: None,
                 })
             }
             Err(e) => {
@@ -107,14 +140,22 @@ impl InstrumentedGraph {
     #[instrument(
         skip(self),
         fields(
+            otel.kind = "CLIENT",
             db.system.name = "neo4j",
             server.address = %self.server_address,
             server.port = %self.server_port,
+            db.namespace = "default",
             db.operation.name = "start_transaction"
         )
     )]
     pub async fn start_txn(&self) -> Result<InstrumentedTxn, neo4rs::Error> {
         debug!("Starting transaction on default database");
+
+        // Record transaction start if metrics are enabled
+        if let Some(metrics) = &self.metrics {
+            metrics.record_transaction_start("default");
+        }
+
         match self.inner.start_txn().await {
             Ok(txn) => {
                 info!("Transaction started successfully");
@@ -122,6 +163,7 @@ impl InstrumentedGraph {
                     txn,
                     self.server_address.clone(),
                     self.server_port,
+                    self.metrics.clone(),
                 ))
             }
             Err(e) => {
@@ -139,15 +181,30 @@ impl InstrumentedGraph {
     #[instrument(
         skip(self, q),
         fields(
+            otel.kind = "CLIENT",
             db.system.name = "neo4j",
             server.address = %self.server_address,
             server.port = %self.server_port,
+            db.namespace = "default",
             db.operation.name = "run"
         )
     )]
     pub async fn run(&self, q: Query) -> Result<(), neo4rs::Error> {
         debug!("Running query");
-        match self.inner.run(q).await {
+
+        // Start timing if metrics are enabled
+        let timer = self.metrics.as_ref().map(|_| OperationTimer::start());
+
+        let result = self.inner.run(q).await;
+
+        // Record metrics if enabled
+        if let Some(metrics) = &self.metrics {
+            if let Some(timer) = timer {
+                let _ = timer.record_query(metrics, result.is_ok(), Some("run"), "default");
+            }
+        }
+
+        match result {
             Ok(()) => {
                 info!("Query executed successfully");
                 Ok(())
@@ -167,6 +224,7 @@ impl InstrumentedGraph {
     #[instrument(
         skip(self, q),
         fields(
+            otel.kind = "CLIENT",
             db.system.name = "neo4j",
             server.address = %self.server_address,
             server.port = %self.server_port,
@@ -176,7 +234,20 @@ impl InstrumentedGraph {
     )]
     pub async fn run_on(&self, db: &str, q: Query) -> Result<(), neo4rs::Error> {
         debug!("Running query on database: {}", db);
-        match self.inner.run_on(db, q).await {
+
+        // Start timing if metrics are enabled
+        let timer = self.metrics.as_ref().map(|_| OperationTimer::start());
+
+        let result = self.inner.run_on(db, q).await;
+
+        // Record metrics if enabled
+        if let Some(metrics) = &self.metrics {
+            if let Some(timer) = timer {
+                let _ = timer.record_query(metrics, result.is_ok(), Some("run_on"), db);
+            }
+        }
+
+        match result {
             Ok(()) => {
                 info!("Query executed successfully on database: {}", db);
                 Ok(())
@@ -196,15 +267,30 @@ impl InstrumentedGraph {
     #[instrument(
         skip(self, q),
         fields(
+            otel.kind = "CLIENT",
             db.system.name = "neo4j",
             server.address = %self.server_address,
             server.port = %self.server_port,
+            db.namespace = "default",
             db.operation.name = "execute"
         )
     )]
     pub async fn execute(&self, q: Query) -> Result<impl Send, neo4rs::Error> {
         debug!("Executing query");
-        match self.inner.execute(q).await {
+
+        // Start timing if metrics are enabled
+        let timer = self.metrics.as_ref().map(|_| OperationTimer::start());
+
+        let result = self.inner.execute(q).await;
+
+        // Record metrics if enabled
+        if let Some(metrics) = &self.metrics {
+            if let Some(timer) = timer {
+                let _ = timer.record_query(metrics, result.is_ok(), Some("execute"), "default");
+            }
+        }
+
+        match result {
             Ok(stream) => {
                 info!("Query executed successfully, returning stream");
                 Ok(stream)
@@ -224,6 +310,7 @@ impl InstrumentedGraph {
     #[instrument(
         skip(self, q),
         fields(
+            otel.kind = "CLIENT",
             db.system.name = "neo4j",
             server.address = %self.server_address,
             server.port = %self.server_port,
@@ -233,7 +320,20 @@ impl InstrumentedGraph {
     )]
     pub async fn execute_on(&self, db: &str, q: Query) -> Result<impl Send, neo4rs::Error> {
         debug!("Executing query on database: {}", db);
-        match self.inner.execute_on(db, q).await {
+
+        // Start timing if metrics are enabled
+        let timer = self.metrics.as_ref().map(|_| OperationTimer::start());
+
+        let result = self.inner.execute_on(db, q).await;
+
+        // Record metrics if enabled
+        if let Some(metrics) = &self.metrics {
+            if let Some(timer) = timer {
+                let _ = timer.record_query(metrics, result.is_ok(), Some("execute_on"), db);
+            }
+        }
+
+        match result {
             Ok(stream) => {
                 info!(
                     "Query executed successfully on database: {}, returning stream",
