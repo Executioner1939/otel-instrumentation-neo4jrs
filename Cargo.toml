@@ -1,11 +1,11 @@
 [package]
 name = "otel-instrumentation-neo4jrs"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Richard Peters <shadowrhyder@gmail.com>"]
 license = "MIT"
 edition = "2021"
 description = "OpenTelemetry instrumentation for neo4rs Neo4j driver"
-repository = "https://github.com/hermes-capital-io/hermes-platform"
+repository = "https://github.com/Executioner1939/otel-instrumentation-neo4jrs"
 keywords = ["neo4j", "opentelemetry", "tracing", "database", "graph"]
 
 [badges]
@@ -22,15 +22,12 @@ neo4rs = "0.8"
 tracing = "0.1.41"
 opentelemetry = { version = "0.30.0", features = ["trace"] }
 opentelemetry-semantic-conventions = { version = "0.30.0", features = ["semconv_experimental"] }
-futures-util = "0.3.31"
-regex = { version = "1.10", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.43.0", features = ["full", "test-util"] }
 opentelemetry_sdk = { version = "0.30.0", features = ["metrics", "testing", "trace"] }
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 tracing-opentelemetry = "0.31.0"
-tracing-test = "0.2"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
